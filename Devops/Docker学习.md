@@ -78,6 +78,7 @@ mariadb                           MariaDB Server is a high performing open sou�
 
 ```shell
 docker pull container:tag
+# 更新直接pull latest
 ```
 
 - **docker rmi**  # remove image(s)
