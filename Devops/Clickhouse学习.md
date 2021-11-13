@@ -262,3 +262,16 @@ EXPLAIN [AST | SYNTAX | PLAN | PIPELINE] [setting = value, ...] SELECT ... [FORM
 
 
 ### 物化视图
+
+
+
+## Clickhouse常用操作备忘
+
+
+
+#### clickhouse settings
+
+```sql
+SET xxxx_xxxx = 0;
+```
+
