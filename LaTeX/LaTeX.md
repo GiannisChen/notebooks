@@ -18,7 +18,7 @@ $ f(x)=a+b $
 
 
 
-**行间公式**
+##### 行间公式
 
 ```
 $$ f(X) = a + b $$
@@ -30,7 +30,7 @@ $$
 
 
 
-**手动编号**
+##### 手动编号
 
 ```text
 $$ f(x) = a - b \tag{1.1} $$
@@ -39,6 +39,22 @@ $$ f(x) = a - b \tag{1.1} $$
 $$
 f(x)=a-b \tag{1.1}
 $$
+
+
+
+#### 其他格式
+
+##### 空格
+
+|  公式  |         效果 |
+| :----: | -----------: |
+| \qquad | $a \qquad b$ |
+| \quad  |  $a \quad b$ |
+|   \    |     $a \  b$ |
+|   \,   |     $a \, b$ |
+|   \;   |     $a \; b$ |
+|  none  |        $a b$ |
+|  \\!   |     $a \! b$ |
 
 
 
@@ -113,13 +129,14 @@ $$
 |  极限  |   \lim{x \to \infty} ...   |
 |  求和  |       \sum_{}^{} ...       |
 |  求积  |      \prod_{}^{} ...       |
+|  偏导  |          \partial          |
 
 $$
 \lim_{x \to \infty} \frac{1}{x} \qquad \int_{-\infty}^{+\infty}x\mathrm{d}x
 $$
 
 $$
-\sum_{i=1}^{n} i^{2} \qquad \prod_{i=1}^{n} i^2
+\sum_{i=1}^{n} i^{2} \qquad \prod_{i=1}^{n} i^2 \qquad \frac{\partial{y}}{\partial{x}}
 $$
 
 
@@ -154,7 +171,29 @@ $$
 
 ##### 希腊字母
 
-![preview](H:\notebooks\DeepLearning\greek.jpg)
+![preview](greek_alphabet.jpg)
+
+
+
+##### 花体字母
+
+| 效果          | 公式       |
+| ------------- | ---------- |
+| $\mathbb{L}$  | \mathbb{}  |
+| $\mathcal{L}$ | \mathcal{} |
+| $\mathscr{L}$ | \mathscr{} |
+
+
+
+##### 箭头
+
+![arrow](arrow.png)
+
+
+
+#### 关系运算
+
+![relation](relation.jpg)
 
 
 
@@ -195,4 +234,20 @@ $$
 &=2\cos^2x-1
 \end{split}
 $$
+
+
+
+#### 外观格式
+
+##### 加粗
+
+```text
+\boldsymbol{}
+```
+
+$$
+\boldsymbol{test} \qquad test
+$$
+
+
 
