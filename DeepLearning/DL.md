@@ -18,6 +18,44 @@
 - 点乘（`.dot()`），矩阵对应位置元素相乘；
 - 矩阵与向量（`.mv()`），类似于`broadcast`机制；
 
+#### 矩阵行和与列和
+
+```python
+X = torch.tensor([[1.0, 2.0, 3.0],[4.0, 5.0, 6.0]])
+```
+
+$$
+\begin{bmatrix}
+1.0 & 2.0 & 3.0 \\
+4.0 & 5.0 & 6.0 \\
+\end{bmatrix}
+$$
+
+对于：
+
+```python
+X.sum(0, keepdim=True)
+X.sum(1, keepdim=True)
+```
+
+结果为：
+$$
+\begin{align}
+	\begin{bmatrix}
+		5.0 & 7.0 & 9.0
+	\end{bmatrix} 
+	\tag{列和}
+\\
+\\
+	\begin{bmatrix}
+		6.0 \\ 
+		15.0 \\
+	\end{bmatrix} 
+	\tag{行和}
+\end{align}
+$$
+
+
 #### 导数
 
 
