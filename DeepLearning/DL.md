@@ -145,3 +145,4 @@ $\mathscr{L}(\boldsymbol{y},\boldsymbol{\hat{y}}=-\sum_{i}{y_i \log{\hat{y}_i}})
 则其梯度为：
 
 $\frac{\partial{\mathscr{L}}}{\partial{o_i}}=softmax(\boldsymbol{o})_i-y_i$
+
