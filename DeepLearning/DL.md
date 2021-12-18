@@ -403,3 +403,118 @@ clone.load_state_dict(torch.load('mlp.params'))
 clone.eval()
 ```
 
+
+
+---
+
+### 卷积层
+
+- 特殊的全连接层
+- 在图片里找局部特征：（平移不变性和局部性）
+
+- 扩展维度：
+
+  $h_{i,j}=\sum_{k,l} w_{i,j,k,l} \cdot x_{k,l}=\sum_{a,b} v_{i,j,a,b} \cdot x_{i+a,j+b}$
+
+- 对于平移不变性：（交叉相关）
+
+  $h_{i,j}=\sum_{a,b} v_{a,b} \cdot x_{i+a,j+b}$
+
+- 对于局部性：（）
+
+  $h_{i,j}=\sum_{\vert a \vert \leq \Delta,\vert b \vert \leq \Delta} v_{a,b} \cdot x_{i+a,j+b}$
+
+![image-20211214222221268](image-20211214222221268.png)
+
+##### 二维卷积层
+
+$$
+\boldsymbol{Y}^{(n_k-k_h+1) \times (n_w-k_w+1)}=\boldsymbol{X}^{n_h \times n_w} \star \boldsymbol{W}^{k_h \times k_w}+b
+$$
+
+- Kernel
+
+- 一维  $y_i=\sum_{a=1}^{h}w_ax_{i+a}$
+  - 文本-语言-时序序列
+
+- 三维 $y_{i,j,k}=\sum_{a=1}^h\sum_{b=1}^w\sum_{c=1}^dw_{a,b,c} \cdot x_{i+a,j+b,k+c}$
+  - 视频-医学图像-气象图像
+
+##### 填充
+
+- 输入四周填充额外行列，一般取卷积核（kernel）$（k_h-1，\ k_w-1)$
+  - 上侧填充$\lceil \frac{p_h}{2} \rceil$，下侧填充$\lfloor \frac{p_h}{2} \rfloor$
+
+##### 步幅
+
+- 每次卷积过后移动距离（默认是1-1），记为：$s_h-s_w$
+
+##### 多输入和输出通道
+
+- 以RGB图片为代表
+
+**代码**
+
+- 以下图第一个卷积层为例（Conv1）：
+
+```python
+nn.Conv2d(1, 6, kernel_size=5, padding=0, stride=1)
+```
+
+![img](webp)
+
+### 池化层
+
+- **二维最大池化**：返回滑动窗口内的最大值
+
+- 其他部分，如**步幅**，**填充**等与卷积层类似
+- 池化层缓解卷积层的位置敏感性
+
+
+
+---
+
+### LeNet
+
+- 经典应用场景：手写数字识别，简化后的LeNet如图所示：
+
+  ![image-20211217212510570](image-20211217212510570.png)
+
+### AlexNet
+
+- 更深更大的LeNet，为了处理更大的模型，采用了以下策略：
+
+  - dropout
+  - ReLu （缓解梯度消失）
+  - MaxPooling
+
+  ![../_images/alexnet.svg](alexnet.svg)
+
+
+
+### VGG
+
+- AlexNet思路的拓展，使用**VGG块**
+  - 大量卷积层堆叠，但是不影响数据的大小（input_size = output_size）
+
+![../_images/vgg.svg](https://zh-v2.d2l.ai/_images/vgg.svg)
+
+
+
+### NiN
+
+- 在VGG中全连接层是很“贵”的（矩阵很“宽”），因此需要简化来提升速度
+
+- **NiN块**：（替代全连接层）
+
+  <img src="image-20211218194437089.png" alt="image-20211218194437089" style="zoom:50%;" />
+
+  - 一个卷积层后跟两个全连接层（1x1的卷积层），卷积层步幅为1，无填充，因此输出形状跟卷积层输入一致
+
+    <img src="image-20211218203610815.png" alt="image-20211218203610815" style="zoom:50%;" />
+
+- **NiN架构**：
+
+  - 无全连接层，交替使用NiN块和步幅为2的最大池化层（可以逐步减小高宽和增大通道数）
+  - 最后使用全局平均池化层得到输出（其输入通道是类别数）
+
