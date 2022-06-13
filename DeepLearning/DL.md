@@ -518,3 +518,119 @@ nn.Conv2d(1, 6, kernel_size=5, padding=0, stride=1)
   - 无全连接层，交替使用NiN块和步幅为2的最大池化层（可以逐步减小高宽和增大通道数）
   - 最后使用全局平均池化层得到输出（其输入通道是类别数）
 
+
+
+### GoogLeNet
+
+- **Inception块**
+
+  - 全都要（4个不同的分路径从不同层面抽取信息，在输出通道合并 (**Concatenation**)）
+
+    ![inception](inception.svg)
+
+  - 输出和输入高宽相同，但是和单卷积相比，**Inception**有更少的参数和计算复杂度
+
+
+
+### 批量归一化
+
+- 上层更新较快，而下层变化不明显，收敛因此较慢，但是，底层信息影响着上层数据，整体收敛受底层影响
+
+- **批量归一化**固定小批量里的均值和方差：
+
+  $\mu_B = \frac{1}{\vert B \vert}\sum_{i \in B} \sigma^2_B = \frac{1}{\vert B \vert}\sum_{i \in B} (x_i - \mu_B)^2 + \epsilon$
+
+  在做额外的调整（可学习的参数）：（$\gamma$：方差， $\beta$：均值，均可学习）
+  
+  $x_{i+1} = \gamma \frac{x_i - \mu_B}{\sigma_B} + \beta$
+
+##### 批量归一化层
+
+- 作用域（线性变换）：
+  - 全连接层和卷积层输出上，激活函数之前
+  - 全连接层和卷积层输入上
+    - 全连接层：作用在特征维上
+    - 卷积层：作用在通道维上
+- 加速收敛不改变模型精度 
+
+
+
+### ResNet
+
+##### 残差块
+
+- 残差快（加入快速通道）
+
+  ![../_images/residual-block.svg](residual-block.svg)
+
+
+
+### 数据增广
+
+- 增加一个数据集的噪音（例：改变图片的颜色和形状）
+
+  - 在线生成，随机生成
+
+  - **切割**
+
+    - 随机高宽比，随机大小，随机位置
+
+  - **颜色**
+
+    - 明亮度，饱和度，色调
+
+    - ```
+      我们还可以创建一个RandomColorJitter实例，并设置如何同时随机更改图像的亮度（brightness）、对比度（contrast）、饱和度（saturation）和色调（hue）
+      ```
+
+
+
+### 微调
+
+- 通过使用在大数据集上预训练的模型来初始化权重提升模型精度
+- 微调通常很快，精度更高
+- 预训练模型精度要求很高
+
+
+
+### 转置卷积
+
+- 专职卷积可以增大输入高宽
+
+  <img src="image-20211229161438767.png" alt="image-20211229161438767" style="zoom:67%;" />
+
+  $Y[i:i+h,j:j+w]+=X[i,j]\cdot K$
+
+
+
+### 全连接卷积神经网络（FCN）
+
+- 将CNN最后的全连接层替换成转置卷积层，以便于预测所有像素（图像处理）
+
+
+
+### 序列模型
+
+pass
+
+
+
+### RNN
+
+##### 潜变量自回归模型
+
+- 使用隐变量$h_t$总结过去信息：
+
+  <img src="image-20220106171820318.png" alt="image-20220106171820318" style="zoom: 67%;" />
+
+##### 循环神经网络
+
+- 更新隐藏状态：$\boldsymbol{h}_t = \phi(\boldsymbol{W}_{hh}\boldsymbol{h}_{t-1} + \boldsymbol{W}_{hx}\boldsymbol{x}_{t-1} + \boldsymbol{b}_h)$
+
+- 输出：$\boldsymbol{o}_t = \phi(\boldsymbol{W}_{ho}\boldsymbol{h}_t + \boldsymbol{b}_o)$
+
+  <img src="image-20220106203303119.png" alt="image-20220106203303119" style="zoom:67%;" />
+
+- 梯度爆炸：迭代过程中会出现矩阵乘法链
+- 使用**梯度裁剪**预防：$\boldsymbol{g} \gets min(1, \frac{\theta}{\Vert\boldsymbol{g}\Vert})\boldsymbol{g}$
+- 

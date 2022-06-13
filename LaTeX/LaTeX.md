@@ -102,6 +102,8 @@ $$
 |  范数  | \Vert  | $\Vert x\Vert$  |
 | 绝对值 | \vert  | $\vert x \vert$ |
 |  叉乘  | \times |    $\times$     |
+|  异或  | \oplus |    $\oplus$     |
+|   非   |  \neg  |     $\neg$      |
 
 
 
@@ -313,3 +315,65 @@ $$
 ![img](20160425102352044)
 
 ​	
+
+## 标号
+
+#### 无序列表
+
+```latex
+\begin{itemize}
+    \item one
+    \item two
+    \item ...
+\end{itemize}
+```
+
+![img](v2-22579b97fe8e449e30e849177aeabea1_720w.jpg)
+
+```latex
+\begin{itemize}
+    \item[*] one
+    \item[*] two
+    \item[*] ...
+\end{itemize}
+```
+
+![img](v2-806055604b084a853343cebcf5bef651_720w.jpg)
+
+#### 有序列表
+
+```latex
+\begin{enumerate}
+    \item one
+    \item two
+    \item ...
+\end{enumerate}
+```
+
+![img](v2-6c8ca8f5a29a06f30f2be5f36344a434_720w.jpg)
+
+```latex
+\begin{enumerate}[i)]
+    \item one
+    \item two
+    \item ...
+\end{enumerate}
+
+\begin{enumerate}[1)]
+    \item one
+    \item two
+    \item ...
+\end{enumerate}
+```
+
+![img](v2-6150aa4a37feb554d6ff06de054b0494_720w.jpg)
+
+```latex
+\begin{description}
+    \item[Step1] one
+    \item[Step2] two
+    \item[Step3] ...
+\end{description}
+```
+
+![img](v2-16971d66143febbfde44e07b549bc525_720w.jpg)
