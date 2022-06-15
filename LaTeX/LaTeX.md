@@ -377,3 +377,77 @@ $$
 ```
 
 ![img](v2-16971d66143febbfde44e07b549bc525_720w.jpg)
+
+#### 子标题
+
+```latex
+\sebsection{}
+```
+
+
+
+## 表格
+
+```latex
+\usepackage{booktabs} % for three-line table
+\begin{table}[htbp]
+    \begin{tabular}{c|c}
+        \toprule
+	        value1 & value2 \\
+        \midrule
+    	    172.12 & 00 \\
+        	173.01 & 00 \\
+        \midrule
+        	172.12 & 00 \\
+        	188.12 & 00 \\
+        \bottomrule           
+    \end{tabular}
+\end{table}
+```
+
+##### 表格过大
+
+```latex
+\usepackage{booktabs} % for three-line table
+\begin{table}[htbp]
+	\resizebox{\columnwidth}{!}{
+		\begin{tabular}{c|c}
+            \toprule
+            	value1 & value2 \\
+            \midrule
+	            172.12 & 00 \\
+    	        173.01 & 00 \\
+            \midrule
+        	    172.12 & 00 \\
+            	188.12 & 00 \\
+            \bottomrule           
+		\end{tabular}
+    }
+\end{table}
+```
+
+## 图片
+
+```latex
+\begin{figure}[h]
+	\includegraphics{IEEE-754.pdf}
+\end{figure}
+```
+
+##### 图片过大
+
+```latex
+\usepackage[export]{adjustbox}
+\begin{figure}[h]
+    \includegraphics[max width=\linewidth]{IEEE-754.pdf}
+    \caption{IEEE-754 standard for double precision.}
+    \label{IEEE754Standard}
+\end{figure}
+```
+
+##### 引用
+
+```
+\usepackage{cleveref}
+```
+
