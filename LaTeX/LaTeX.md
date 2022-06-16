@@ -451,3 +451,43 @@ $$
 \usepackage{cleveref}
 ```
 
+
+
+## 伪代码
+
+```latex
+\usepackage[linesnumbered,ruled,vlined]{algorithm2e}
+\IncMargin{1em}
+\begin{algorithm} \SetKwData{Left}{left}\SetKwData{This}{this}\SetKwData{Up}{up} \SetKwFunction{Union}{Union}\SetKwFunction{FindCompress}{FindCompress} \SetKwInOut{Input}{input}\SetKwInOut{Output}{output}
+	
+	\Input{A bitmap $Im$ of size $w\times l$} 
+	\Output{A partition of the bitmap}
+	 \BlankLine 
+	 
+	 \emph{special treatment of the first line}\; 
+	 \For{$i\leftarrow 2$ \KwTo $l$}{ 
+	 	\emph{special treatment of the first element of line $i$}\; 
+	 	\For{$j\leftarrow 2$ \KwTo $w$}{\label{forins} \Left$\leftarrow$\FindCompress{$Im[i,j-1]$}\; 
+	 	\Up$\leftarrow$ \FindCompress{$Im[i-1,]$}\; 
+	 	\This$\leftarrow$ \FindCompress{$Im[i,j]$}\; 
+	 	\If(\tcp*[h]{O(\Left,\This)==1})
+	 		{\Left compatible with \This}{\label{lt} 
+	 			\lIf{\Left $<$ \This}{\Union{\Left,\This}}
+	 			 \lElse{\Union{\This,\Left}} } 
+ 	    \If(\tcp*[f]{O(\Up,\This)==1}){\Up compatible with
+ 			 	 \This}{\label{ut} 
+ 			 	 \lIf{\Up $<$ \This}{\Union{\Up,\This}} 
+ 			 	 \tcp{\This is put under \Up to keep tree as flat as possible}\label{cmt} \lElse{\Union{\This,\Up}}\tcp*[h]{\This linked to \Up}\label{lelse}
+ 		 	  }
+ 	 	   }
+ 		 \lForEach{element $e$ of the line $i$}{\FindCompress{p}} 
+ 	 } 
+ 	 	  \caption{disjoint decomposition}
+ 	 	  \label{algo_disjdecomp} 
+ 	 \end{algorithm}
+ \DecMargin{1em} 
+```
+
+![img](v2-4bef32bd5aa38044b9b9fcab0539d3d0_1440w.jpg)
+
+**官方文档**：https://link.zhihu.com/?target=https%3A//mirrors.cqu.edu.cn/CTAN/macros/latex/contrib/algorithm2e/doc/algorithm2e.pdf
