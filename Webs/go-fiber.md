@@ -903,3 +903,248 @@ app.Get("/forbidden", func(c *fiber.Ctx) error {
 
 
 
+### Fiber测试
+
+- We will use both the features built into the language and the framework for testing and some third-party tools. For example, the very popular **Go** testing package [Testify](https://github.com/stretchr/testify). Typically, each test function contains:
+
+  - A structure that describes the incoming conditions.
+  - A collection of test cases, according to the structure.
+  - A test instance of an application with some simple state.
+  - A loop with test logic inside, to do an enumeration of test cases.
+
+- Now, let's look at an example of such a test function on a very simple example: we're going to check one of the application paths for what HTTP methods it gives back:
+
+  - If it gives a status of HTTP 200 OK, then this test case will be successful (*PASS*). In the case, if it will give a status of HTTP 404 Not Found, then it will fail. But we will be ready for this error.
+
+  - Such a test case is needed to test our target function not only for a positive scenario, but also for a negative (*FAIL*) scenario, which may also occur as a result of using the application in the future.
+
+```go
+package routes
+
+import (
+  "net/http/httptest"
+  "testing"
+
+  "github.com/gofiber/fiber/v2"
+  "github.com/stretchr/testify/assert" // add Testify package
+)
+
+func TestHelloRoute(t *testing.T) {
+  // Define a structure for specifying input and output data
+  // of a single test case
+  tests := []struct {
+    description  string // description of the test case
+    route        string // route path to test
+    expectedCode int    // expected HTTP status code
+  }{
+    // First test case
+    {
+      description:  "get HTTP status 200",
+      route:        "/hello",
+      expectedCode: 200,
+    },
+    // Second test case
+    {
+      description:  "get HTTP status 404, when route is not exists",
+      route:        "/not-found",
+      expectedCode: 404,
+    },
+  }
+
+  // Define Fiber app.
+  app := fiber.New()
+
+  // Create route with GET method for test
+  app.Get("/hello", func(c *fiber.Ctx) error {
+    // Return simple string as response
+    return c.SendString("Hello, World!")
+  })
+
+  // Iterate through test single test cases
+  for _, test := range tests {
+    // Create a new http request with the route from the test case
+    req := httptest.NewRequest("GET", test.route, nil)
+
+    // Perform the request plain with the app,
+    // the second argument is a request latency
+    // (set to -1 for no latency)
+    resp, _ := app.Test(req, 1)
+
+    // Verify, if the status code is as expected
+    assert.Equalf(t, test.expectedCode, resp.StatusCode, test.description)
+  }
+}
+```
+
+
+
+### 中间件
+
+- Security middlewares in the Fiber web framework perform the task of protecting your application from various types of hacker attacks. This is **critical** for projects that work in production with real users.
+
+> ☝️ **Note:** However, even if you don't plan to put your project into production now, knowing about such middleware is still a useful skill.
+
+#### Helmet middleware
+
+- Helmet middleware helps to secure our Fiber application by setting various HTTP headers:
+
+  - [XSS Protection](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-XSS-Protection)
+
+  - [Content-Type No Sniff](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Content-Type-Options)
+
+  - [X-Frame Options](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Frame-Options)
+
+  - [HSTS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Strict-Transport-Security) Max Age
+
+  - [CSP Report Only](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Security-Policy-Report-Only)
+
+  - Exclude Subdomains & Preload Enabled
+
+  - Content Security & Referrer Policies
+
+```go
+import "github.com/gofiber/helmet/v2"
+
+// ...
+
+// Use middlewares for each route
+app.Use(
+  helmet.New(), // add Helmet middleware
+)
+```
+
+
+
+#### CSRF middleware
+
+- CSRF middleware for Fiber that provides [Cross-Site request forgery](https://en.wikipedia.org/wiki/Cross-site_request_forgery) protection by passing a CSRF token via cookies.
+
+- This cookie value will be used to compare against the client CSRF token in the POST requests. When the CSRF token is invalid, this middleware will delete the `csrf_` cookie and return the `fiber.ErrForbidden` error.
+
+```go
+import "github.com/gofiber/fiber/v2/middleware/crsf"
+
+// ...
+
+// Use middlewares for each route
+app.Use(
+  csrf.New(), // add CSRF middleware
+)
+```
+
+We can retrieve the CSRF token with `c.Locals(key)`, where key is the option name in the custom middleware configuration.
+
+The CSRF middleware custom config may look like this:
+
+```go
+// Set config for CSRF middleware
+csrfConfig := csrf.Config{
+  KeyLookup:      "header:X-Csrf-Token", // string in the form of '<source>:<key>' that is used to extract token from the request
+  CookieName:     "my_csrf_",            // name of the session cookie
+  CookieSameSite: "Strict",              // indicates if CSRF cookie is requested by SameSite
+  Expiration:     3 * time.Hour,         // expiration is the duration before CSRF token will expire
+  KeyGenerator:   utils.UUID,            // creates a new CSRF token
+}
+
+// Use middlewares for each route
+app.Use(
+  csrf.New(csrfConfig), // add CSRF middleware with config
+)
+```
+
+
+
+#### Limiter middleware
+
+- Limiter middleware for Fiber used to limit repeated requests to public APIs or endpoints such as password reset etc. Moreover, useful for API clients, web crawling, or other tasks that need to be throttled.
+
+```go
+// ./go/security_middlewares.go
+
+import "github.com/gofiber/fiber/v2/middleware/limiter"
+
+// ...
+
+// Use middlewares for each route
+app.Use(
+  limiter.New(), // add Limiter middleware
+)
+```
+
+- Most of the time, you will probably be using this middleware along with your configuration. It's easy to add a config like this:
+
+```go
+// Set config for Limiter middleware
+limiterConfig := limiter.Config{
+  Next: func(c *fiber.Ctx) bool {
+    return c.IP() == "127.0.0.1" // limit will apply to this IP
+  },
+  Max:        20,                // max count of connections
+  Expiration: 30 * time.Second,  // expiration time of the limit
+  Storage:    myCustomStorage{}, // used to store the state of the middleware
+  KeyGenerator: func(c *fiber.Ctx) string {
+    return c.Get("x-forwarded-for") // allows you to generate custom keys
+  },
+  LimitReached: func(c *fiber.Ctx) error {
+    return c.SendFile("./too-fast-page.html") // called when a request hits the limit
+  },
+}
+
+// Use middlewares for each route
+app.Use(
+  limiter.New(limiterConfig), // add Limiter middleware with config
+)
+```
+
+
+
+#### Explore Logging middleware
+
+- Like any other framework, Fiber also has its built-in middleware for logging HTTP request/response details and displaying results in the console.
+
+- Let's look at an example of what this might look like:
+
+```go
+// ./go/logger_middlewares.go
+
+import "github.com/gofiber/fiber/v2/middleware/logger"
+
+// ...
+
+// Use middlewares for each route
+app.Use(
+  logger.New(), // add Logger middleware
+)
+```
+
+- And the console output looks like this:
+
+```
+08:17:42 | 404 |   85ms |  127.0.0.1 | GET   | /v1/user/123 
+08:18:07 | 204 |  145ms |  127.0.0.1 | POST  | /v1/webhook/postmark 
+08:19:53 | 201 |  138ms |  127.0.0.1 | PUT   | /v1/article/create 
+```
+
+- Yes, Logger middleware connects in the same way as the middleware reviewed earlier. Furthermore, we can save all logs to a file, not console output, like this:
+
+```go
+// Define file to logs
+file, err := os.OpenFile("./my_logs.log", os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+if err != nil {
+  log.Fatalf("error opening file: %v", err)
+}
+defer file.Close()
+
+// Set config for logger
+loggerConfig := logger.Config{
+  Output: file, // add file to save output
+}
+
+// Use middlewares for each route
+app.Use(
+  logger.New(loggerConfig), // add Logger middleware with config
+)
+```
+
+
+
