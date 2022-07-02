@@ -1148,3 +1148,1228 @@ app.Use(
 
 
 
+# 案例
+
+
+
+### 参考
+
+- https://dev.to/koddr/build-a-restful-api-on-go-fiber-postgresql-jwt-and-swagger-docs-in-isolated-docker-containers-475j
+
+
+
+### 目标
+
+> Let's create a REST API for an online library application in which we create new books, view them, and update & delete their information. But some methods will require us to authorize through providing a valid JWT access token. I'll store all the information about the books, as usual, in my beloved PostgreSQL.
+
+
+
+### 提供的API接口
+
+- **Public**
+
+  | Type |        Route        |        Description        |
+  | :--: | :-----------------: | :-----------------------: |
+  | GET  |   `/api/v1/books`   |       get all books       |
+  | GET  | `/api/v1/book/{id}` |  get a book by given id   |
+  | GET  | `/api/v1/token/new` | create a new access token |
+
+- **Private** (JWT protected)
+
+  |  Type  |     Route      |       Description       |
+  | :----: | :------------: | :---------------------: |
+  |  POST  | `/api/v1/book` |    create a new book    |
+  | PATCH  | `/api/v1/book` | update an existing book |
+  | DELETE | `/api/v1/book` | delete an existing book |
+
+
+
+### 文件组织架构
+
+##### 业务逻辑文件夹
+
+- `./app`文件夹里的文件并不关心底层逻辑，比如使用了什么数据库驱动，或者采用了什么缓存策略，以及更多第三方的内容。
+  - `./aoo/controllers`在路由里使用的函数控制器？（直译的，就是controller层）
+  - `./app/models`描述业务逻辑的模型和方法。
+  - `./app/queries`描述模型使用的数据库查询。
+
+##### API文档
+
+- `./docs`存放Swagger配置文件的文件夹，用于自动生成API文档。
+
+##### 具有项目特定功能的文件夹
+
+- `./pkg` 文件夹包含所有为你的业务用例量身定制的项目特定代码。
+  - `./pkg/configs`放配置文件
+  - `./pkg/middleware` 放增加的中间件
+  - `./pkg/routes` 描述使用的路由
+  - `./pkg/utils` 放服务生成器和服务启动器等实用函数。
+
+##### 具有平台级逻辑的文件夹
+
+- `./platform` 文件夹包含所有平台级的逻辑，这些逻辑将构建实际的项目，比如设置数据库或缓存服务器实例和存储迁移。
+
+  - `./platform/database` 具有数据库设置功能的文件夹
+
+  - `./platform/migrations` 存放迁移文件的文件夹
+
+
+
+### 数据库部分
+
+- 不同于文章，我选用了`clickhouse`作为数据库，这不是一个合适的选择，因为`clickhouse`更多作为OLTP数据库存在，此处系我偷懒......
+- 同理，我把属性换成了`tags`字段。
+- 路径是：`./platform/migrate`
+
+1. 创建一个`init_tables.up.sql`和一个`init_tables.down.sql`用作数据库初始化挂载和取消。
+
+```sql
+CREATE TABLE default.books
+(
+    `id` UUID,
+    `createTime` DateTime DEFAULT now(),
+    `updateTime` DateTime DEFAULT now(),
+    `title` String,
+    `author` String,
+    `status` Int32,
+    `tags` Array(String)
+)
+ENGINE = MergeTree
+ORDER BY id
+SETTINGS index_granularity = 8192;
+```
+
+```sql
+DROP TABLE IF EXISTS books;
+```
+
+2. 使用`golang-migrate/migrate`
+
+#### 使用`migrate`
+
+- repo路径：https://github.com/golang-migrate/migrate
+
+- 使用`scoop`安装：https://github.com/GiannisChen/migrate/tree/master/cmd/migrate & https://scoop.sh/
+
+  ```shell
+  // install scoop
+  $ Set-ExecutionPolicy RemoteSigned -Scope CurrentUser # Optional: Needed to run a remote script the first time
+  $ irm get.scoop.sh | iex
+  
+  // install migrate
+  $ scoop install migrate
+  ```
+
+- 然后可以使用`migrate`来做数据库的`up/down/forward/backward`
+
+  ```shell
+  $ migrate -help
+  Usage: migrate OPTIONS COMMAND [arg...]
+         migrate [ -version | -help ]
+  
+  Options:
+    -source          Location of the migrations (driver://url)
+    -path            Shorthand for -source=file://path
+    -database        Run migrations against this database (driver://url)
+    -prefetch N      Number of migrations to load in advance before executing (default 10)
+    -lock-timeout N  Allow N seconds to acquire database lock (default 15)
+    -verbose         Print verbose logging
+    -version         Print version
+    -help            Print usage
+  
+  Commands:
+    create [-ext E] [-dir D] [-seq] [-digits N] [-format] NAME
+                 Create a set of timestamped up/down migrations titled NAME, in directory D with extension E.
+                 Use -seq option to generate sequential up/down migrations with N digits.
+                 Use -format option to specify a Go time format string.
+    goto V       Migrate to version V
+    up [N]       Apply all or N up migrations
+    down [N]     Apply all or N down migrations
+    drop         Drop everything inside database
+    force V      Set version V but don't run migration (ignores dirty state)
+    version      Print current migration version
+  ```
+
+- 一般使用的语法：（我还没成功，但是Windows，so u know...）
+
+  ```shell
+  $ migrate -path ./platform/migrations -database clickhouse://192.168.47.128:9000?username=default1&password=12345678&database=default&x-multi-statement=true up 1 init_tables
+  ```
+
+
+
+#### 模型层
+
+- `./app/models/book.go`
+
+```go
+type book struct {
+	ID         uuid.UUID `json:"id"`	// > github.com/google/uuid
+	CreateTime time.Time `json:"create_time"`
+	UpdateTime time.Time `json:"update_time"`
+	Title      string    `json:"title"`
+	Author     string    `json:"author"`
+	Status     int       `json:"status"`
+	Tags       []string  `json:"tags"`
+}
+```
+
+> 👍 I recommend to use the [google/uuid](https://github.com/google/uuid) package to create unique IDs, because this is a more versatile way to protect your application against common number brute force attacks. *Especially if your REST API will have public methods without authorization and request limit*.
+
+
+
+#### UUID验证器
+
+- 在给业务逻辑处理传参数的时候，需要验证参数的正确性，用户的输入不可信；
+
+- `./app/utils/validator.go`
+
+```go
+package utils
+
+import (
+    "github.com/go-playground/validator/v10"
+    "github.com/google/uuid"
+)
+
+// NewValidator func for create a new validator for model fields.
+func NewValidator() *validator.Validate {
+    // Create a new validator for a Book model.
+    validate := validator.New()
+
+    // Custom validation for uuid.UUID fields.
+    _ = validate.RegisterValidation("uuid", func(fl validator.FieldLevel) bool {
+        field := fl.Field().String()
+        if _, err := uuid.Parse(field); err != nil {
+            return true
+        }
+        return false
+    })
+
+    return validate
+}
+
+// ValidatorErrors func for show validation errors for each invalid fields.
+func ValidatorErrors(err error) map[string]string {
+    // Define fields map.
+    fields := map[string]string{}
+
+    // Make error message for each invalid field.
+    for _, err := range err.(validator.ValidationErrors) {
+        fields[err.Field()] = err.Error()
+    }
+
+    return fields
+}
+```
+
+
+
+#### 数据库连接
+
+- 创建连接方式，为了可拓展性显然给包了两层，一层`*sql.DB`，一层`*sqlx.DB`；
+- `./platform/database/clickhouse.go`
+
+```go
+package database
+
+import (
+	"fmt"
+	"github.com/ClickHouse/clickhouse-go/v2"
+	"github.com/jmoiron/sqlx"
+	"time"
+)
+
+func ClickHouseConnection() (*sqlx.DB, error) {
+	db := sqlx.NewDb(clickhouse.OpenDB(&clickhouse.Options{
+		Addr: []string{"192.168.47.128:9000"},
+		Auth: clickhouse.Auth{
+			Database: "default",
+			Username: "default1",
+			Password: "12345678",
+		},
+		Settings: clickhouse.Settings{
+			"max_execution_time": 60,
+		},
+		DialTimeout: 5 * time.Second,
+		Compression: &clickhouse.Compression{
+			Method: clickhouse.CompressionLZ4,
+		},
+	}), "clickhouse")
+
+	// Set database connection settings.
+	db.SetMaxOpenConns(100)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(time.Duration(60))
+
+	if db.DB == nil {
+		return nil, fmt.Errorf("error, not connected to database")
+	}
+	// Try to ping database.
+	if err := db.Ping(); err != nil {
+		defer db.Close() // close database connection
+		return nil, fmt.Errorf("error, not sent ping to database, %w", err)
+	}
+
+	return db, nil
+}
+```
+
+- `./platform/database/open_db_connection.go`
+
+```go
+package database
+
+import "github.com/GiannisChen/AwesomeGoFiberDemo/app/queries"
+
+type Queries struct {
+	*queries.BookQueries
+}
+
+func OpenDBConnection() (*Queries, error) {
+	// Define a new ClickHouse connection.
+	db, err := ClickHouseConnection()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Queries{
+		// Set queries from models:
+		BookQueries: &queries.BookQueries{DB: db}, // from Book model
+	}, nil
+}
+```
+
+```mermaid
+classDiagram
+class DB
+class BookQueries
+class Queries
+Queries--|>BookQueries
+BookQueries--|>DB
+```
+
+
+
+#### 创建查询语句
+
+##### 数据库查询
+
+- 显然使用了驱动和查询分离的策略；
+
+```go
+type BookQueries struct {
+	*sqlx.DB	// > github.com/jmorion/sqlx
+}
+
+func (q *BookQueries) GetBooks() ([]models.Book, error) {
+	var books []models.Book
+	if err := q.Get(&books, `select * from books`); err != nil {
+		return books, err
+	}
+	return books, nil
+}
+
+func (q *BookQueries) GetBook(id uuid.UUID) (models.Book, error) {
+	var book models.Book
+	if err := q.Get(&book, `select * from books prewhere id = $1`, id); err != nil {
+		return book, err
+	}
+	return book, nil
+}
+
+func (q *BookQueries) CreateBook(b *models.Book) error {
+	if _, err := q.Exec(`insert into books values ($1,$2,$3,$4,$5,$6,$7)`,
+		b.ID, b.CreateTime, b.UpdateTime, b.Title, b.Author, b.Status, b.Tags); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (q *BookQueries) UpdateBook(id uuid.UUID, b *models.Book) error {
+	if _, err := q.Exec(`alter table books update updateTime=$2, title=$3, author=$4, status=$5, tags=$6 where id = $1`,
+		id, b.UpdateTime, b.Title, b.Author, b.Status, b.Tags); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (q *BookQueries) DeleteBook(id uuid.UUID) error {
+	if _, err := q.Exec(`alter table books where id=$1`, id); err != nil {
+		return err
+	}
+	return nil
+}
+```
+
+
+
+### 工具方法
+
+#### JWT
+
+- For generate a valid JWT
+- `./utils/jwt_generator.go` & `./utils/jwt_parser.go`
+
+```go
+package utils
+
+import (
+	"github.com/golang-jwt/jwt"
+	"time"
+)
+
+func GenerateNewAccessToken() (string, error) {
+	// set secret key
+	secret := "secret"
+	// set expires minutes count for secret key
+	minutesCount := 5
+	// create a new claims
+	claims := jwt.MapClaims{}
+	// set public claims
+	claims["exp"] = time.Now().Add(time.Minute * time.Duration(minutesCount))
+	// create a new JWT access token with claims
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	// generate token
+	if t, err := token.SignedString([]byte(secret)); err != nil {
+		return "", err
+	} else {
+		return t, nil
+	}
+}
+
+```
+
+```go
+package utils
+
+import (
+	"github.com/gofiber/fiber"
+	"github.com/golang-jwt/jwt"
+	"strings"
+)
+
+type TokenMetaData struct {
+	Expires int64
+}
+
+func ExtractTokenMetaData(c *fiber.Ctx) (*TokenMetaData, error) {
+	token, err := verifyToken(c)
+	if err != nil {
+		return nil, err
+	}
+	// setting and checking token and credentials
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		expires := int64(claims["exp"].(float64))
+		return &TokenMetaData{Expires: expires}, nil
+	} else {
+		return nil, err
+	}
+}
+
+func verifyToken(c *fiber.Ctx) (*jwt.Token, error) {
+	tokenString := extractToken(c)
+	if token, err := jwt.Parse(tokenString, jwtKeyFunc); err != nil {
+		return nil, err
+	} else {
+		return token, nil
+	}
+}
+
+func jwtKeyFunc(_ *jwt.Token) (interface{}, error) {
+	return []byte("secret"), nil
+}
+
+func extractToken(c *fiber.Ctx) string {
+	bearToken := c.Get("Authorization")
+	// normally Authorization HTTP header
+	onlyToken := strings.Split(bearToken, " ")
+	if len(onlyToken) == 2 {
+		return onlyToken[1]
+	}
+	return ""
+}
+
+```
+
+
+
+### controller层
+
+#### GET
+
+- The principle of the `GET` methods:
+
+  - Make request to the API endpoint;
+
+  - Make a connection to the database (or an error);
+
+  - Make a query to get record(s) from the table `books` (or an error);
+
+  - Return the status `200` and JSON with a founded book(s);
+
+```go
+package controllers
+
+import (
+	"github.com/GiannisChen/AwesomeGoFiberDemo/platform/database"
+	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
+)
+
+func GetBooks(c *fiber.Ctx) error {
+	db, err := database.OpenDBConnection()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	// Get all books.
+	if books, err := db.GetBooks(); err != nil {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": true,
+			"msg":   "books were not found",
+			"count": 0,
+			"books": nil,
+		})
+	} else {
+		return c.JSON(fiber.Map{
+			"error": false,
+			"msg":   nil,
+			"count": len(books),
+			"books": books,
+		})
+	}
+}
+
+func GetBook(c *fiber.Ctx) error {
+	// Catch book ID from URL
+	id, err := uuid.Parse(c.Params("id"))
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	db, err := database.OpenDBConnection()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	if book, err := db.GetBook(id); err != nil {
+		// Return, if book not found.
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": true,
+			"msg":   "book with the given ID is not found",
+			"book":  nil,
+		})
+	} else {
+		return c.JSON(fiber.Map{
+			"error": false,
+			"msg":   nil,
+			"book":  book,
+		})
+	}
+}
+```
+
+#### POST
+
+- The principle of the `POST` methods:
+
+  - Make a request to the API endpoint;
+
+  - Check, if request `Header` has a valid JWT;
+
+  - Check, if expire date from JWT greather than now (or an error);
+
+  - Parse Body of request and bind fields to the Book struct (or an error);
+
+  - Make a connection to the database (or an error);
+
+  - Validate struct fields with a new content from Body (or an error);
+
+  - Make a query to create a new record in the table `books` (or an error);
+
+  - Return the status `200` and JSON with a new book;
+
+```go
+func Create(c *fiber.Ctx) error {
+	now := time.Now().Unix()
+	// get claims from JWT
+	claims, err := token.ExtractTokenMetaData(c)
+	if err != nil {
+		// return status 500 and JWT parse error
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+	// set expiration time from JWT data of current book
+	expires := claims.Expires
+	// checking, if now time greater than expiration from JWT
+	if now > expires {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": true,
+			"msg":   "unauthorized, check expiration time of your token",
+		})
+	}
+
+	book := models.Book{}
+	// check, if received JSON data is valid
+	if err := c.BodyParser(&book); err != nil {
+		// return status 400 and error message.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	db, err := database.OpenDBConnection()
+	if err != nil {
+		// return status 500 and database connection error.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	// create a new validator for a Book model
+	validate := utils.NewValidator()
+	// set initialized default data for book
+	book.ID = uuid.New()
+	book.CreateTime = time.Now()
+	book.Status = 1
+
+	// validate book fields
+	if err := validate.Struct(book); err != nil {
+		// return, if some fields are not valid.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   utils.ValidatorErrors(err),
+		})
+	}
+
+	// create book by given id
+	if err := db.CreateBook(&book); err != nil {
+		// Return status 500 and error message.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	} else {
+		// return status 200 OK.
+		return c.JSON(fiber.Map{
+			"error": false,
+			"msg":   nil,
+			"book":  book,
+		})
+	}
+}
+
+```
+
+#### PUT
+
+- The principle of the `PUT` methods:
+
+  - Make a request to the API endpoint;
+
+  - Check, if request `Header` has a valid JWT;
+
+  - Check, if expire date from JWT greather than now (or an error);
+
+  - Parse Body of request and bind fields to the Book struct (or an error);
+
+  - Make a connection to the database (or an error);
+
+  - Validate struct fields with a new content from Body (or an error);
+
+  - Check, if book with this ID is exists (or an error);
+
+  - Make a query to update this record in the table `books` (or an error);
+
+  - Return the status `201` without content;
+
+```go
+func UpdateBook(c *fiber.Ctx) error {
+	now := time.Now().Unix()
+	// get claims from JWT
+	claims, err := token.ExtractTokenMetaData(c)
+	if err != nil {
+		// return status 500 and JWT parse error
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+	// set expiration time from JWT data of current book
+	expires := claims.Expires
+	// checking, if now time greater than expiration from JWT
+	if now > expires {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": true,
+			"msg":   "unauthorized, check expiration time of your token",
+		})
+	}
+
+	book := models.Book{}
+	// check, if received JSON data is valid
+	if err := c.BodyParser(&book); err != nil {
+		// return status 400 and error message.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	db, err := database.OpenDBConnection()
+	if err != nil {
+		// return status 500 and database connection error.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	// checking, if book with given ID is exists
+	foundedBook, err := db.GetBook(book.ID)
+	if err != nil {
+		// return status 404 and book not found error
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": true,
+			"msg":   "book with this ID not found",
+		})
+	}
+
+	// create a new validator for a Book model
+	validate := utils.NewValidator()
+
+	book.UpdateTime = time.Now()
+
+	// validate book fields
+	if err := validate.Struct(book); err != nil {
+		// return, if some fields are not valid.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   utils.ValidatorErrors(err),
+		})
+	}
+
+	// update book by given id
+	if err := db.UpdateBook(foundedBook.ID, &book); err != nil {
+		// Return status 500 and error message.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	} else {
+		// return status 200 OK.
+		//return c.SendStatus(fiber.StatusCreated)
+		return c.SendStatus(fiber.StatusCreated)
+	}
+}
+
+```
+
+#### DELETE
+
+- The principle of the `DELETE` methods:
+
+  - Make a request to the API endpoint;
+
+  - Check, if request `Header` has a valid JWT;
+
+  - Check, if expire date from JWT greather than now (or an error);
+
+  - Parse Body of request and bind fields to the Book struct (or an error);
+
+  - Make a connection to the database (or an error);
+
+  - Validate struct fields with a new content from Body (or an error);
+
+  - Check, if book with this ID is exists (or an error);
+
+  - Make a query to delete this record from the table `books` (or an error);
+
+  - Return the status `204` without content;
+
+```go
+func DeleteBook(c *fiber.Ctx) error {
+	now := time.Now().Unix()
+	// get claims from JWT
+	claims, err := token.ExtractTokenMetaData(c)
+	if err != nil {
+		// return status 500 and JWT parse error
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+	// set expiration time from JWT data of current book
+	expires := claims.Expires
+	// checking, if now time greater than expiration from JWT
+	if now > expires {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": true,
+			"msg":   "unauthorized, check expiration time of your token",
+		})
+	}
+
+	book := models.Book{}
+	// check, if received JSON data is valid
+	if err := c.BodyParser(&book); err != nil {
+		// return status 400 and error message.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	db, err := database.OpenDBConnection()
+	if err != nil {
+		// return status 500 and database connection error.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	// create a new validator for a Book model
+	validate := utils.NewValidator()
+
+	// validate book fields
+	if err := validate.StructPartial(book, "id"); err != nil {
+		// return, if some fields are not valid.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   utils.ValidatorErrors(err),
+		})
+	}
+
+	// checking, if book with given ID is exists.
+	foundedBook, err := db.GetBook(book.ID)
+	if err != nil {
+		// return status 404 and book not found error.
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": true,
+			"msg":   "book with this ID not found",
+		})
+	}
+
+	// delete book by given ID.
+	if err := db.DeleteBook(foundedBook.ID); err != nil {
+		// return status 500 and error message.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	} else {
+		// return status 204 no content.
+		return c.SendStatus(fiber.StatusNoContent)
+	}
+}
+
+```
+
+#### TOKEN
+
+- Method for get a new Access token (JWT)
+
+  - Make request to the API endpoint;
+
+  - Return the status `200` and JSON with a new access token;
+
+```go
+
+package controllers
+
+import (
+    "github.com/gofiber/fiber/v2"
+    "github.com/koddr/tutorial-go-fiber-rest-api/pkg/utils"
+)
+
+// GetNewAccessToken method for create a new access token.
+// @Description Create a new access token.
+// @Summary create a new access token
+// @Tags Token
+// @Accept json
+// @Produce json
+// @Success 200 {string} status "ok"
+// @Router /v1/token/new [get]
+func GetNewAccessToken(c *fiber.Ctx) error {
+    // Generate a new Access token.
+    token, err := utils.GenerateNewAccessToken()
+    if err != nil {
+        // Return status 500 and token generation error.
+        return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+            "error": true,
+            "msg":   err.Error(),
+        })
+    }
+
+    return c.JSON(fiber.Map{
+        "error":        false,
+        "msg":          nil,
+        "access_token": token,
+    })
+}
+```
+
+
+
+### 中间件
+
+#### JWT
+
+- middleware JWT
+
+```go
+package middleware
+
+import (
+    "os"
+
+    "github.com/gofiber/fiber/v2"
+
+    jwtMiddleware "github.com/gofiber/jwt/v2"
+)
+
+// JWTProtected func for specify routes group with JWT authentication.
+// See: https://github.com/gofiber/jwt
+func JWTProtected() func(*fiber.Ctx) error {
+    // Create config for JWT authentication middleware.
+    config := jwtMiddleware.Config{
+        SigningKey:   []byte(os.Getenv("JWT_SECRET_KEY")),
+        ContextKey:   "jwt", // used in private routes
+        ErrorHandler: jwtError,
+    }
+
+    return jwtMiddleware.New(config)
+}
+
+func jwtError(c *fiber.Ctx, err error) error {
+    // Return status 401 and failed authentication error.
+    if err.Error() == "Missing or malformed JWT" {
+        return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+            "error": true,
+            "msg":   err.Error(),
+        })
+    }
+
+    // Return status 401 and failed authentication error.
+    return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+        "error": true,
+        "msg":   err.Error(),
+    })
+}
+```
+
+#### Fiber
+
+- 
+
+
+
+### Route
+
+- normal routes
+
+```go
+package routes
+
+import (
+	"github.com/GiannisChen/AwesomeGoFiberDemo/app/controllers"
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/middleware"
+	"github.com/gofiber/fiber/v2"
+)
+
+// PublicRoutes func for describe group of public routes
+func PublicRoutes(a *fiber.App) {
+	route := a.Group("/api/v1")
+	route.Get("/books", controllers.GetBooks)
+	route.Get("/book/:id", controllers.GetBook)
+	route.Get("/token/new", controllers.GetNewAccessToken)
+}
+
+// PrivateRoutes func for describe group of private routes.
+func PrivateRoutes(a *fiber.App) {
+	route := a.Group("/api/v1")
+	route.Post("/book", middleware.JWTProtected(), controllers.CreateBook)
+	route.Put("/book", middleware.JWTProtected(), controllers.UpdateBook)
+	route.Delete("/book", middleware.JWTProtected(), controllers.DeleteBook)
+}
+```
+
+-  404 route
+
+```go
+package routes
+
+import "github.com/gofiber/fiber/v2"
+
+// NotFoundRoute func for describe 404 Error route.
+func NotFoundRoute(a *fiber.App) {
+    // Register new special route.
+    a.Use(
+        // Anonimus function.
+        func(c *fiber.Ctx) error {
+            // Return HTTP 404 status and JSON response.
+            return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+                "error": true,
+                "msg":   "sorry, endpoint is not found",
+            })
+        },
+    )
+}
+```
+
+
+
+### Swagger
+
+- 使用`github.com/gofiber/swagger`
+
+1. 确定swagger的配置，通过注释的方式进行，可惜暂时没有找到自动生成的方式，哪怕在Goland里，悲
+
+```go
+// ./main.go
+
+package main
+
+import (
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/configs"
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/middleware"
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/routes"
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/utils"
+	"github.com/gofiber/fiber/v2"
+
+	_ "github.com/GiannisChen/AwesomeGoFiberDemo/docs"
+)
+
+// @title API
+// @version 1.0
+// @description This is an auto-generated API Docs.
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.email giannischen@nuaa.edu.cn
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @securityDefinitions.apikey ApiKeyAuth
+// @name Authorization
+// @in header
+// @BasePath /api/v1
+func main() {
+	app := fiber.New(configs.FiberConfig())
+	// middlewares
+	middleware.FiberMiddleware(app)
+	// routes
+	routes.SwaggerRoute(app)
+	routes.PublicRoutes(app)
+	routes.PrivateRoutes(app)
+	routes.NotFoundRoute(app)
+
+	// start server
+	utils.StartServerWithGracefulShutdown(app)
+}
+```
+
+2. 在`controller`层以同样的方式实现
+
+```go
+// UpdateBook func for updates book by given ID.
+// @Description Update book.
+// @Summary update book
+// @Tags Book
+// @Accept 	x-www-form-urlencoded
+// @Produce json
+// @Param id formData string true "ID"
+// @Param title formData string false "Title"
+// @Param author formData string false "Author"
+// @Param tags formData []string false "Tags"
+// @Success 201 {string} status "ok"
+// @Failure 500 {bool} error true
+// @Failure 401 {bool} error true
+// @Security ApiKeyAuth
+// @Router /book [put]
+func UpdateBook(c *fiber.Ctx) error {
+	now := time.Now().Unix()
+	// get claims from JWT
+	claims, err := token.ExtractTokenMetaData(c)
+	if err != nil {
+		// return status 500 and JWT parse error
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+	// set expiration time from JWT data of current book
+	expires := claims.Expires
+	// checking, if now time greater than expiration from JWT
+	if now > expires {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+			"error": true,
+			"msg":   "unauthorized, check expiration time of your token",
+		})
+	}
+
+	book := models.Book{}
+	// check, if received JSON data is valid
+	if err := c.BodyParser(&book); err != nil {
+		// return status 400 and error message.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	db, err := database.OpenDBConnection()
+	if err != nil {
+		// return status 500 and database connection error.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	}
+
+	// checking, if book with given ID is exists
+	foundedBook, err := db.GetBook(book.ID)
+	if err != nil {
+		// return status 404 and book not found error
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
+			"error": true,
+			"msg":   "book with this ID not found",
+		})
+	}
+
+	// create a new validator for a Book model
+	validate := utils.NewValidator()
+
+	if strings.TrimSpace(book.Title) == "" {
+		book.Title = foundedBook.Title
+	}
+	if strings.TrimSpace(book.Author) == "" {
+		book.Author = foundedBook.Author
+	}
+	if len(book.Tags) == 0 {
+		book.Tags = foundedBook.Tags
+	}
+	book.CreateTime = foundedBook.CreateTime
+	book.Status = foundedBook.Status
+	book.UpdateTime = time.Now()
+
+	// validate book fields
+	if err := validate.Struct(book); err != nil {
+		// return, if some fields are not valid.
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": true,
+			"msg":   utils.ValidatorErrors(err),
+		})
+	}
+
+	// update book by given id
+	if err := db.UpdateBook(foundedBook.ID, &book); err != nil {
+		// Return status 500 and error message.
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	} else {
+		// return status 200 OK.
+		//return c.SendStatus(fiber.StatusCreated)
+		return c.SendStatus(fiber.StatusCreated)
+	}
+}
+```
+
+​	以`UpdateBook`为例，使用`json`是教程原文采用的方法，但是swagger使用`json`的话没法进行`BodyParser`，	因为返回报文里的数据会以奇怪的方式，即只返回最后一个参数值，然后我改用了`formData`表单的方式，让数	据更加整齐一点......
+
+3. 使用`swag init`来自动生成doc文件等。
+4. 
+
+#### ROUTE
+
+```go
+package routes
+
+import (
+    "github.com/gofiber/fiber/v2"
+
+    swagger "github.com/arsmn/fiber-swagger/v2"
+)
+
+// SwaggerRoute func for describe group of API Docs routes.
+func SwaggerRoute(a *fiber.App) {
+    // Create routes group.
+    route := a.Group("/swagger")
+
+    // Routes for GET method:
+    route.Get("*", swagger.Handler) // get one user by ID
+}
+```
+
+
+
+### 启动服务
+
+```go
+package main
+
+import (
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/configs"
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/middleware"
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/routes"
+	"github.com/GiannisChen/AwesomeGoFiberDemo/pkg/utils"
+	"github.com/gofiber/fiber/v2"
+
+	_ "github.com/GiannisChen/AwesomeGoFiberDemo/docs"
+)
+
+// @title API
+// @version 1.0
+// @description This is an auto-generated API Docs.
+// @termsOfService http://swagger.io/terms/
+// @contact.name API Support
+// @contact.email giannischen@nuaa.edu.cn
+// @license.name Apache 2.0
+// @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+// @securityDefinitions.apikey ApiKeyAuth
+// @name Authorization
+// @in header
+// @BasePath /api/v1
+func main() {
+	app := fiber.New(configs.FiberConfig())
+	// middlewares
+	middleware.FiberMiddleware(app)
+	// routes
+	routes.SwaggerRoute(app)
+	routes.PublicRoutes(app)
+	routes.PrivateRoutes(app)
+	routes.NotFoundRoute(app)
+
+	// start server
+	utils.StartServerWithGracefulShutdown(app)
+}
+
+```
+
+
+
+
+
+
+
+### 注册为Docker服务（todo）
+
+
+
+### Makefile（todo）
+
+- 使用`Makefile`来进行项目管理。
+
