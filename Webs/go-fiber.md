@@ -2361,10 +2361,6 @@ func main() {
 
 
 
-
-
-
-
 ### 注册为Docker服务（todo）
 
 
@@ -2372,4 +2368,341 @@ func main() {
 ### Makefile（todo）
 
 - 使用`Makefile`来进行项目管理。
+
+---
+
+
+
+# 其他可能用到的组件
+
+
+
+### 数据绑定结构体
+
+```go
+type Book struct {
+	ID         uuid.UUID `json:"id" gc:"id"`
+	CreateTime time.Time `json:"createTime" gc:"createTime"`
+	UpdateTime time.Time `json:"updateTime" gc:"updateTime"`
+	Title      string    `json:"title" gc:"title"`
+	Author     string    `json:"author" gc:"author"`
+	Status     uint8     `json:"status" gc:"status"`
+}
+```
+
+- 结构体通过添加标签，能够自动被识别出来例如我的这个`gc`标签
+- 通过反射包来做：`import reflect`
+
+```go
+func Unmarshal(m map[string]string, ptr any) error {
+	rv := reflect.ValueOf(ptr)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return &NotPointerError{reflect.TypeOf(ptr)}
+	}
+	items := reflect.ValueOf(ptr).Elem()
+	rv = reflect.Indirect(rv)
+	for i := 0; i < items.NumField(); i++ {
+		value := m[items.Type().Field(i).Tag.Get("gc")]
+		name := items.Type().Field(i).Name
+		_type := items.Field(i).Type()
+		val := reflect.ValueOf(value)
+		var err error
+		if _type != val.Type() {
+			val, err = TypeConversion(value, _type.Name())
+			if err != nil {
+				return &ParseError{Type: _type, Value: value}
+			}
+		}
+		rv.FieldByName(name)
+		rv.FieldByName(name).Set(val)
+	}
+	return nil
+}
+
+func TypeConversion(value string, ntype string) (reflect.Value, error) {
+	switch ntype {
+	case "UUID":
+		id, err := uuid.Parse(value)
+		return reflect.ValueOf(id), err
+	case "string":
+		return reflect.ValueOf(value), nil
+	case "time.Time":
+		t, err := time.ParseInLocation(time.RFC3339Nano, value, time.Local)
+		return reflect.ValueOf(t), err
+	case "Time":
+		t, err := time.ParseInLocation(time.RFC3339Nano, value, time.Local)
+		return reflect.ValueOf(t), err
+	case "int":
+		i, err := strconv.Atoi(value)
+		return reflect.ValueOf(i), err
+	case "uint8":
+		i, err := strconv.ParseInt(value, 10, 64)
+		return reflect.ValueOf(uint8(i)), err
+	case "int32":
+		i, err := strconv.ParseInt(value, 10, 64)
+		return reflect.ValueOf(i), err
+	case "int64":
+		i, err := strconv.ParseInt(value, 10, 64)
+		return reflect.ValueOf(i), err
+	case "float32":
+		i, err := strconv.ParseFloat(value, 64)
+		return reflect.ValueOf(float32(i)), err
+	case "float64":
+		i, err := strconv.ParseFloat(value, 64)
+		return reflect.ValueOf(i), err
+	//case "[]string":
+	default:
+		return reflect.ValueOf(value), errors.New("未知的类型：" + ntype)
+	}
+}
+```
+
+- 不过还有一个疑问，我该如何识别一些自定义类呢？`json`不需要去指定`TypeConv`函数；
+
+#### 通用
+
+- 对于`encoding/json`：
+  - 可以使用`json: "field,omitempty"`来隐藏空属性，但是属性不为空时，显示；
+  - `json: "-"`隐藏当前属性；
+
+- **Here is a list of commonly used tag keys:**
+
+  - `json   ` - used by the [`encoding/json`](https://golang.org/pkg/encoding/json/) package, detailed at [`json.Marshal()`](https://golang.org/pkg/encoding/json/#Marshal)
+
+  - `xml   ` - used by the [`encoding/xml`](https://golang.org/pkg/encoding/xml/) package, detailed at [`xml.Marshal()`](https://golang.org/pkg/encoding/xml/#Marshal)
+
+  - `bson   ` - used by [gobson](https://labix.org/gobson), detailed at [`bson.Marshal()`](http://godoc.org/gopkg.in/mgo.v2/bson#Marshal); also by the [mongo-go](https://github.com/mongodb/mongo-go-driver) driver, detailed at [bson package doc](https://pkg.go.dev/go.mongodb.org/mongo-driver/bson#hdr-Structs)
+
+  - `protobuf ` - used by [`github.com/golang/protobuf/proto`](http://godoc.org/github.com/golang/protobuf/proto), detailed in the package doc
+
+  - `yaml   ` - used by the [`gopkg.in/yaml.v2`](https://godoc.org/gopkg.in/yaml.v2) package, detailed at [`yaml.Marshal()`](https://godoc.org/gopkg.in/yaml.v2#Marshal)
+
+  - `db    ` - used by the [`github.com/jmoiron/sqlx`](https://godoc.org/github.com/jmoiron/sqlx) package; also used by [`github.com/go-gorp/gorp`](https://github.com/go-gorp/gorp) package
+
+  - `orm   ` - used by the [`github.com/astaxie/beego/orm`](https://godoc.org/github.com/astaxie/beego/orm) package, detailed at [Models – Beego ORM](https://beego.me/docs/mvc/model/overview.md)
+
+  - `gorm   ` - used by [`gorm.io/gorm`](https://gorm.io/), examples can be found in their [docs](https://gorm.io/docs/)
+
+  - `valid  ` - used by the [`github.com/asaskevich/govalidator`](https://github.com/asaskevich/govalidator) package, examples can be found in the project page
+
+  - `datastore` - used by [`appengine/datastore`](https://cloud.google.com/appengine/docs/go/datastore/reference) (Google App Engine platform, Datastore service), detailed at [Properties](https://cloud.google.com/appengine/docs/go/datastore/reference#hdr-Properties)
+
+  - `schema  ` - used by [`github.com/gorilla/schema`](http://godoc.org/github.com/gorilla/schema) to fill a `struct` with HTML form values, detailed in the package doc
+
+  - `asn   ` - used by the [`encoding/asn1`](https://golang.org/pkg/encoding/asn1/) package, detailed at [`asn1.Marshal()`](https://golang.org/pkg/encoding/asn1/#Marshal) and [`asn1.Unmarshal()`](https://golang.org/pkg/encoding/asn1/#Unmarshal)
+
+  - `csv   ` - used by the [`github.com/gocarina/gocsv`](https://github.com/gocarina/gocsv) package
+
+  - `env      ` - used by the [`github.com/caarlos0/env`](https://github.com/caarlos0/env) package
+
+### 数据验证
+
+Package validator implements value validations for structs and individual fields based on tags.
+
+It has the following **unique** features:
+
+- Cross Field and Cross Struct validations by using validation tags or custom validators.
+- Slice, Array and Map diving, which allows any or all levels of a multidimensional field to be validated.
+- Ability to dive into both map keys and values for validation
+- Handles type interface by determining it's underlying type prior to validation.
+- Handles custom field types such as sql driver Valuer see [Valuer](https://golang.org/src/database/sql/driver/types.go?s=1210%3A1293#L29)
+- Alias validation tags, which allows for mapping of several validations to a single tag for easier defining of validations on structs
+- Extraction of custom defined Field Name e.g. can specify to extract the JSON name while validating and have it available in the resulting FieldError
+- Customizable i18n aware error messages.
+- source from: https://pkg.go.dev/github.com/go-playground/validator/v10#section-readme
+
+### 验证码
+
+- 就像一般常见的验证码一样运行，通过第三方包`base64Captcha`实现；
+- GitHub：https://github.com/mojocn/base64Captcha
+  - `string`
+  - `math`
+  - `digit`
+  - `chinese`
+  - `audio`
+  - `language`
+
+##### 声明存储
+
+- **存储上限**和**超时参数**
+
+```go
+var store = base64Captcha.NewMemoryStore(100, 5)
+```
+
+##### 定义验证码驱动
+
+```go
+var driver base64Captcha.Driver
+
+driver = base64Captcha.NewDriverString(80, 240, 0,		base64Captcha.OptionShowHollowLine|base64Captcha.OptionShowSlimeLine|base64Captcha.OptionShowSineLine, 5, "1234567890qwertyuioplkjhgfdsazxcvbnm", nil, nil, nil)
+
+captcha := base64Captcha.NewCaptcha(driver, store)
+```
+
+##### 生成验证码
+
+```go
+if id, b64, err := captcha.Generate(); err != nil {
+	return nil, err
+} else {
+	return fiber.Map{"id": id, "base_64_blob": b64}, nil
+}
+```
+
+##### 验证
+
+```go
+store.Verify(id, captcha, false)
+```
+
+#### 例子
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+</head>
+<body>
+<img id="capt" src=""/><br/>
+<input id="captvalue" placeholder="请输入验证码"/><br/>
+<input type="button" value="提交" onclick="submit()"> | <input type="button" value="换一个" onclick="reload()">
+<script>
+
+    var curCaptId = "";
+    //得到图形验证码和id
+    $.ajax({
+        type: "GET",
+        url: "/api/v1/captcha/digit",
+        data: {},
+        dataType: "JSON",
+        success: function (result) {
+            curCaptId = result.id;
+            document.getElementById("capt").src = result.base_64_blob;
+        }
+    });
+
+    //提交验证码和id
+    function submit() {
+        var capt = document.getElementById("captvalue").value;
+        var postdata = {
+            "id": curCaptId,
+            "captcha": capt
+        };
+        $.ajax({
+            type: "POST",
+            url: "/api/v1/captcha",
+            data: postdata,
+            dataType: "JSON",
+            success: function (result) {
+                if (!result.error) {
+                    alert("验证成功");
+                } else {
+                    alert("验证错误:" + result.msg);
+                }
+            }
+        });
+    }
+
+    function reload() {
+        //得到图形验证码和id
+        $.ajax({
+            type: "GET",
+            url: "/api/v1/captcha/digit",
+            data: {},
+            dataType: "JSON",
+            success: function (result) {
+                document.getElementById("captvalue").value = ""
+                curCaptId = result.id;
+                document.getElementById("capt").src = result.base_64_blob;
+            }
+        })
+    }
+
+</script>
+</body>
+</html>
+```
+
+#### 方法
+
+```go
+package utils
+
+import (
+	"github.com/gofiber/fiber/v2"
+	"github.com/mojocn/base64Captcha"
+)
+
+var store = base64Captcha.NewMemoryStore(100, 5)
+
+func GenerateCaptcha(captchaType string) (fiber.Map, error) {
+	var driver base64Captcha.Driver
+	switch captchaType {
+	case "string":
+		driver = base64Captcha.NewDriverString(80, 240, 0,
+			base64Captcha.OptionShowHollowLine|base64Captcha.OptionShowSlimeLine|base64Captcha.OptionShowSineLine,
+			5, "1234567890qwertyuioplkjhgfdsazxcvbnm", nil, nil, nil)
+	case "math":
+		driver = base64Captcha.NewDriverMath(80, 240, 0,
+			base64Captcha.OptionShowHollowLine|base64Captcha.OptionShowSlimeLine|base64Captcha.OptionShowSineLine,
+			nil, nil, nil)
+	default:
+		driver = base64Captcha.NewDriverDigit(80, 240, 5, 1.0, 100)
+	}
+	captcha := base64Captcha.NewCaptcha(driver, store)
+	if id, b64, err := captcha.Generate(); err != nil {
+		return nil, err
+	} else {
+		return fiber.Map{"id": id, "base_64_blob": b64}, nil
+	}
+}
+
+func VerifyCaptcha(id, captcha string) bool {
+	return store.Verify(id, captcha, false)
+}
+```
+
+#### 路由
+
+```go
+package controllers
+
+import (
+	"github.com/GiannisChen/AwesomeGoFiberDemo/app/utils"
+	"github.com/gofiber/fiber/v2"
+)
+
+func GenerateCaptcha(c *fiber.Ctx) error {
+	if captcha, err := utils.GenerateCaptcha(c.Params("type", "digit")); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": true,
+			"msg":   err.Error(),
+		})
+	} else {
+		return c.JSON(captcha)
+	}
+}
+
+func VerifyCaptcha(c *fiber.Ctx) error {
+	if utils.VerifyCaptcha(c.FormValue("id"), c.FormValue("captcha")) {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"error": false,
+			"msg":   "OK",
+		})
+	} else {
+		return c.Status(fiber.StatusOK).JSON(fiber.Map{
+			"error": true,
+			"msg":   "verify failed",
+		})
+	}
+}
+
+func InitCaptchaPage(c *fiber.Ctx) error {
+	return c.Render("captcha", fiber.Map{})
+}
+```
 
