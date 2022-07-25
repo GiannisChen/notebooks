@@ -2515,6 +2515,8 @@ It has the following **unique** features:
 
 - 就像一般常见的验证码一样运行，通过第三方包`base64Captcha`实现；
 - GitHub：https://github.com/mojocn/base64Captcha
+- case：https://captcha.mojotv.cn/
+- easy start：https://mojotv.cn/go/refactor-base64-captcha
   - `string`
   - `math`
   - `digit`
@@ -2706,3 +2708,9 @@ func InitCaptchaPage(c *fiber.Ctx) error {
 }
 ```
 
+
+
+### 流量控制
+
+- 流量控制限制对某些操作的访问次数，像是API客户端、爬虫；
+- 默认情况下，此模块不与其他进程/服务器共享状态；
