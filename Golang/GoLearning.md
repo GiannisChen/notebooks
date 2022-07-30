@@ -13,8 +13,20 @@
 1. [切片](#切片（slices）)
 2. [范围遍历](#范围遍历（range）)
 3. [字符串（string），字节数组（bytes），符文（runes）和字符（characters）](#字符串（string），字节数组（bytes），符文（runes）和字符（characters）)
+4. [可变参数函数](#可变参数函数)
+5. [函数闭包](#函数闭包)
+6. [结构体封装（继承）](#结构体封装（继承）)
+7. [Go泛型](#Go泛型)
+8. [带`error`处理的`errgroup`](#带`error`处理的`errgroup`)
+9. [`recover`现场恢复](#`recover`现场恢复)
+10. [标准化格式JSON和XML](#标准化格式JSON和XML)
+11. [URL的自动解析](#URL的自动解析)
+12. [`reflect`反射机制](#`reflect`反射机制)
+13. [for-range的特殊现象](#for-range的特殊现象)
 
 
+
+## 章节
 
 ### 切片（slices）
 
@@ -615,9 +627,301 @@ func main() {
 - https://adam.herokuapp.com/past/2010/3/30/urls_are_the_uniform_way_to_locate_resources/
 - https://gobyexample.com/url-parsing
 
+---
 
 
 
+### `reflect`反射机制
+
+- https://draveness.me/golang/docs/part2-foundation/ch04-basic/golang-reflect/
+
+##### 	接口到反射对象
+
+![golang-interface-to-reflection](golang-interface-to-reflection.png)
+
+```go
+package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+func main() {
+	author := "draven"
+	fmt.Println("TypeOf author:", reflect.TypeOf(author))
+	fmt.Println("ValueOf author:", reflect.ValueOf(author))
+}
+
+// TypeOf author:  string
+// ValueOf author: draven
+```
+
+- [`reflect.TypeOf`](https://draveness.me/golang/tree/reflect.TypeOf) 获取了变量 `author` 的类型，[`reflect.ValueOf`](https://draveness.me/golang/tree/reflect.ValueOf) 获取了变量的值 `draven`
+
+##### 反射对象到接口
+
+![golang-reflection-to-interface](golang-reflection-to-interface.png)
+
+不过调用 [`reflect.Value.Interface`](https://draveness.me/golang/tree/reflect.Value.Interface) 方法只能获得 `interface{}` 类型的变量，如果想要将其还原成最原始的状态还需要经过如下所示的显式类型转换：
+
+```go
+v := reflect.ValueOf(1)
+v.Interface().(int)
+```
+
+- 从反射对象到接口值的过程是从接口值到反射对象的镜面过程，两个过程都需要经历两次转换：
+  - 从接口值到反射对象：
+    - 从基本类型到接口类型的类型转换；
+    - 从接口类型到反射对象的转换；
+  - 从反射对象到接口值：
+    - 反射对象转换成接口类型；
+    - 通过显式类型转换变成原始类型；
+
+![golang-bidirectional-reflection](https://img.draveness.me/golang-bidirectional-reflection.png)
+
+##### 反射值更新
+
+- 特殊情况下需要从反射中获取值，并更新他，前提是并不知道数据类型，即只知道是`reflect.Value`
+
+```go
+func main() {
+	i := 1
+	v := reflect.ValueOf(i)
+	v.SetInt(10)
+	fmt.Println(i)
+}
+
+// panic: reflect: reflect.Value.SetInt using unaddressable value                               
+// goroutine 1 [running]:                                        
+// reflect.flag.mustBeAssignableSlow(0x0?)                       
+//         D:/Program Files/Go/src/reflect/value.go:262 +0x85    
+// reflect.flag.mustBeAssignable(...)                            
+//         D:/Program Files/Go/src/reflect/value.go:249          
+// reflect.Value.SetInt({0x363420?, 0x3fe928?, 0x2d52f9?}, 0xa)  
+//         D:/Program Files/Go/src/reflect/value.go:2161 +0x48   
+// main.main()                                                   
+//         F:/My Github Repositories/GoExample/main.go:11 +0xb1  
+
+```
+
+- 直接方法是无法设置的，但是可以通过获取指针来设置，这种方法是显然的：
+  1. 调用 [`reflect.ValueOf`](https://draveness.me/golang/tree/reflect.ValueOf) 获取变量指针
+  2. 调用 [`reflect.Value.Elem`](https://draveness.me/golang/tree/reflect.Value.Elem) 获取指针指向的变量
+  3. 调用 [`reflect.Value.SetInt`](https://draveness.me/golang/tree/reflect.Value.SetInt) 更新变量的值
+
+```go
+func main() {
+	i := 1
+	v := reflect.ValueOf(&i)
+	v.Elem().SetInt(10)
+	fmt.Println(i)
+}
+
+// 10
+```
+
+##### 利用反射调用函数
+
+1. 通过 [`reflect.ValueOf`](https://draveness.me/golang/tree/reflect.ValueOf) 获取函数 `Add` 对应的反射对象；
+2. 调用 [`reflect.rtype.NumIn`](https://draveness.me/golang/tree/reflect.rtype.NumIn) 获取函数的入参个数；
+3. 多次调用 [`reflect.ValueOf`](https://draveness.me/golang/tree/reflect.ValueOf) 函数逐一设置 `argv` 数组中的各个参数；
+4. 调用反射对象 `Add` 的 [`reflect.Value.Call`](https://draveness.me/golang/tree/reflect.Value.Call) 方法并传入参数列表；
+5. 获取返回值数组、验证数组的长度以及类型并打印其中的数据；
+
+```go
+func Add(a, b int) int { return a + b }
+
+func main() {
+	v := reflect.ValueOf(Add)
+	if v.Kind() != reflect.Func {
+		return
+	}
+	t := v.Type()
+	argv := make([]reflect.Value, t.NumIn())
+	for i := range argv {
+		if t.In(i).Kind() != reflect.Int {
+			return
+		}
+		argv[i] = reflect.ValueOf(i)
+	}
+	result := v.Call(argv)
+	if len(result) != 1 || result[0].Kind() != reflect.Int {
+		return
+	}
+	fmt.Println(result[0].Int()) // #=> 1
+}
+
+// 1
+```
+
+---
+
+
+
+### for-range的特殊现象
+
+##### 有限迭代
+
+```go
+func main() {
+	arr := []int{1, 2, 3}
+	for _, v := range arr {
+		arr = append(arr, v)
+	}
+	fmt.Println(arr)
+}
+
+// 1 2 3 1 2 3
+```
+
+- 只有原数组会被遍历，而不会出现死循环的情况；
+
+##### 数组的指针和指针数组
+
+```go
+func main() {
+	arr := []int{1, 2, 3}
+	var newArr []*int
+	for _, v := range arr {
+		newArr = append(newArr, &v)
+	}
+	for _, v := range newArr {
+		fmt.Println(*v)
+	}
+}
+
+// 3 3 3
+```
+
+- 👆是不正常的，👇是正常的
+
+```go
+func main() {
+	arr := []int{1, 2, 3}
+	var newArr []*int
+	for i, _ := range arr {
+		newArr = append(newArr, &arr[i])
+	}
+	for _, v := range newArr {
+		fmt.Println(*v)
+	}
+}
+
+// 1 2 3
+```
+
+##### 哈希表的随机遍历
+
+- 哈希表的遍历是随机的，`key`的顺序是不确定的
+
+```go
+func main() {
+	hash := map[string]int{
+		"1": 1,
+		"2": 2,
+		"3": 3,
+	}
+	for k, v := range hash {
+		println(k, v)
+	}
+}
+```
+
+#### 原理
+
+##### `for range a{}` 
+
+```go
+ha := a
+hv1 := 0
+hn := len(ha)
+v1 := hv1
+for ; hv1 < hn; hv1++ {
+    ...
+}
+```
+
+##### `for idx := range a{}`
+
+```go
+ha := a
+hv1 := 0
+hn := len(ha)
+v1 := hv1
+for ; hv1 < hn; hv1++ {
+    v1 = hv1
+    ...
+}
+```
+
+##### `for idx, value := range a{}`
+
+```go
+ha := a
+hv1 := 0
+hn := len(ha)
+v1 := hv1
+v2 := nil
+for ; hv1 < hn; hv1++ {
+    tmp := ha[hv1]
+    v1, v2 = hv1, tmp
+    ...
+}
+```
+
+- 这就解释了为什么在[数组的指针和指针数组](#数组的指针和指针数组)里，需要构建指针数组时，`&v`指向的是同一个地址，只有值发生了改变，因此在跳出后的遍历中，都是访问同一个地址，此地址的值更新为数组的最后一个数值。
+
+---
+
+
+
+### `defer`
+
+1. `defer` 关键字的调用时机以及多次调用 `defer` 时执行顺序是如何确定的；
+   - 运行上述代码会倒序执行传入 `defer` 关键字的所有表达式，因为最后一次调用 `defer` 时传入了 `fmt.Println(4)`，所以这段代码会优先打印 4。
+
+```go
+func main() {
+	for i := 0; i < 5; i++ {
+		defer fmt.Println(i)
+	}
+}
+
+// 4 3 2 1 0
+```
+
+2. `defer` 关键字使用传值的方式传递参数时会进行预计算，导致不符合预期的结果；
+   - 调用 `defer` 关键字会立刻拷贝函数中引用的外部参数，所以 `time.Since(startedAt)` 的结果不是在 `main` 函数退出之前计算的，而是在 `defer` 关键字调用时计算的，最终导致上述代码输出 0s。
+
+```go
+func main() {
+	startedAt := time.Now()
+	defer fmt.Println(time.Since(startedAt))
+	
+	time.Sleep(time.Second)
+}
+
+// 0s
+```
+
+3. 为了解决这个问题，可以在`defer`里使用匿名函数：
+   - 虽然调用 `defer` 关键字时也使用值传递，但是因为拷贝的是函数指针，所以 `time.Since(startedAt)` 会在 `main` 函数返回前调用并打印出符合预期的结果。
+
+```go
+func main() {
+	startedAt := time.Now()
+	defer func() { fmt.Println(time.Since(startedAt)) }()
+	
+	time.Sleep(time.Second)
+}
+
+// 1s
+```
+
+- `defer`构造了一个延迟调用的列表，采用头插的方式，因此遍历时是`FILO`模式。
+
+![golang-defer-link](https://img.draveness.me/2020-01-19-15794017184603-golang-defer-link.png)
 
 ---
 
