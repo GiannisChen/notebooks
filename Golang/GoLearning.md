@@ -23,6 +23,8 @@
 11. [URL的自动解析](#URL的自动解析)
 12. [`reflect`反射机制](#`reflect`反射机制)
 13. [for-range的特殊现象](#for-range的特殊现象)
+14. [defer](#defer)
+15. [panic和recover](#panic和recover)
 
 
 
@@ -922,6 +924,78 @@ func main() {
 - `defer`构造了一个延迟调用的列表，采用头插的方式，因此遍历时是`FILO`模式。
 
 ![golang-defer-link](https://img.draveness.me/2020-01-19-15794017184603-golang-defer-link.png)
+
+---
+
+
+
+### `panic`和`recover`
+
+- `panic` 能够改变程序的控制流，调用 `panic` 后会立刻停止执行当前函数的剩余代码，并在当前 Goroutine 中递归执行调用方的 `defer`；
+- `recover` 可以中止 `panic` 造成的程序崩溃。它是一个只能在 `defer` 中发挥作用的函数，在其他作用域中调用不会发挥作用；
+  - `panic` 只会触发当前 Goroutine 的 `defer`；
+  - `recover` 只有在 `defer` 中调用才会生效；
+  - `panic` 允许在 `defer` 中嵌套多次调用；
+
+```go
+func main() {
+	defer println("in main")
+	go func() {
+		defer println("in goroutine")
+		panic("")
+	}()
+
+	time.Sleep(1 * time.Second)
+}
+```
+
+![golang-panic-and-defers](2020-01-19-15794253176199-golang-panic-and-defers.png)
+
+- 如果添加了子进程的`recover()`，那么子进程并不会`panic`掉主进程，相反，主进程得以继续执行，这与上面的代码不同。
+
+```go
+func main() {
+	defer println("in main")
+
+	go func() {
+		defer println("in goroutine")
+		defer func() {
+			if err := recover(); err != nil {
+				fmt.Println(err)
+			} else {
+				fmt.Println("recover")
+			}
+		}()
+		panic("")
+	}()
+
+	time.Sleep(1 * time.Second)
+}
+```
+
+---
+
+
+
+### `make`和`new`
+
+- `new`接受数据类型作为参数然后返回一个指向该类型的指针，等价于
+
+```go
+var v int
+i := &v
+```
+
+- `make` 的作用是初始化内置的数据结构，也就是我们在前面提到的切片、哈希表和 `channel`；
+- `new` 的作用是根据传入的类型分配一片内存空间并返回指向这片内存空间的指针；
+
+```go
+slice := make([]int, 0, 100)
+hash := make(map[int]bool, 10)
+ch := make(chan int, 5)
+```
+
+![golang-make-and-new](golang-make-and-new.png)
 
 ---
 
