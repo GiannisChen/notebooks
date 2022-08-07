@@ -25,6 +25,8 @@
 13. [for-range的特殊现象](#for-range的特殊现象)
 14. [defer](#defer)
 15. [panic和recover](#panic和recover)
+16. [`make`和`new`](#`make`和`new`)
+17. [`context.Context`](#`context.Context`)
 
 
 
@@ -996,6 +998,120 @@ ch := make(chan int, 5)
 ```
 
 ![golang-make-and-new](golang-make-and-new.png)
+
+---
+
+
+
+### `context.Context`
+
+- `context.Context`是一个上下文通讯的接口，包含了四个不同的方法
+  1. `Deadline` — 返回[`context.Context`被取消的时间，也就是完成工作的截止日期；
+  2. `Done` — 返回一个 Channel，这个 Channel 会在当前工作完成或者上下文被取消后关闭，多次调用 `Done` 方法会返回同一个 Channel；
+  3. `Err` — 返回`context.Context`结束的原因，它只会在`Done`方法对应的 Channel 关闭时返回非空的值；
+     - 如果 `context.Context`被取消，会返回 `Canceled` 错误；
+     - 如果 `context.Context`超时，会返回 `DeadlineExceeded` 错误；
+  4. `Value` — 从`context.Context`中获取键对应的值，对于同一个上下文来说，多次调用 `Value` 并传入相同的 `Key` 会返回相同的结果，该方法可以用来传递请求特定的数据；
+
+```go
+type Context interface {
+	Deadline() (deadline time.Time, ok bool)
+	Done() <-chan struct{}
+	Err() error
+	Value(key interface{}) interface{}
+}
+```
+
+- 在一段代码中，我们会创建多个`goroutine`来处理一次请求（例如在HTTP/RPC），而 `context.Context`的作用是在不同 `goroutine`之间同步请求特定数据、取消信号以及处理请求的截止日期。
+
+![golang-context-usage](golang-context-usage.png)
+
+![golang-without-context](golang-without-context.png)
+
+![golang-with-context](golang-with-context.png)
+
+- 从源代码来看，`context.Background`和 context.TODO`也只是互为别名，没有太大的差别，只是在使用和语义上稍有不同：
+
+  - `context.Background`是上下文的默认值，所有其他的上下文都应该从它衍生出来；
+  - `context.TODO`应该仅在不确定应该使用哪种上下文时使用；
+
+  在多数情况下，如果当前函数没有上下文作为入参，我们都会使用 `context.Background`作为起始的上下文向下传递。
+
+  ![golang-context-hierarchy](golang-context-hierarchy.png)
+
+- 其他创建`goroutine`的方法，各有不同的功能
+
+  1. `WithValue`能够在上下文中传递一定的消息
+
+     ```go
+     func WithValue(parent Context, key, val any) Context {
+     	if parent == nil {
+     		panic("cannot create context from nil parent")
+     	}
+     	if key == nil {
+     		panic("nil key")
+     	}
+     	if !reflectlite.TypeOf(key).Comparable() {
+     		panic("key is not comparable")
+     	}
+     	return &valueCtx{parent, key, val}
+     }
+     ```
+
+  2. `WithCancel`创建一个带有取消函数的上下文通信，可以用`cancelFunc`取消该上下文
+
+     ```go
+     func WithCancel(parent Context) (ctx Context, cancel CancelFunc) {
+     	if parent == nil {
+     		panic("cannot create context from nil parent")
+     	}
+     	c := newCancelCtx(parent)
+     	propagateCancel(parent, &c)
+     	return &c, func() { c.cancel(true, Canceled) }
+     }
+     ```
+
+  3. `WithDeadline`创建“闹钟”一样的上下文，到时后关闭上下文，引发超时`Err`
+
+     ```go
+     func WithDeadline(parent Context, d time.Time) (Context, CancelFunc) {
+     	if parent == nil {
+     		panic("cannot create context from nil parent")
+     	}
+     	if cur, ok := parent.Deadline(); ok && cur.Before(d) {
+     		// The current deadline is already sooner than the new one.
+     		return WithCancel(parent)
+     	}
+     	c := &timerCtx{
+     		cancelCtx: newCancelCtx(parent),
+     		deadline:  d,
+     	}
+     	propagateCancel(parent, c)
+     	dur := time.Until(d)
+     	if dur <= 0 {
+     		c.cancel(true, DeadlineExceeded) // deadline has already passed
+     		return c, func() { c.cancel(false, Canceled) }
+     	}
+     	c.mu.Lock()
+     	defer c.mu.Unlock()
+     	if c.err == nil {
+     		c.timer = time.AfterFunc(dur, func() {
+     			c.cancel(true, DeadlineExceeded)
+     		})
+     	}
+     	return c, func() { c.cancel(true, Canceled) }
+     }
+     ```
+
+  4. `WithTimeout`创建倒计时超时，和`WithDeadline`类似，底层源码也是调用`WithDeadline`的接口
+
+     ```go
+     func WithTimeout(parent Context, timeout time.Duration) (Context, CancelFunc) {
+     	return WithDeadline(parent, time.Now().Add(timeout))
+     }
+     ```
+
+     
 
 ---
 
