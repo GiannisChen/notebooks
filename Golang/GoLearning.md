@@ -27,6 +27,7 @@
 15. [panic和recover](#panic和recover)
 16. [`make`和`new`](#`make`和`new`)
 17. [`context.Context`](#`context.Context`)
+18. [同步原语与锁](#同步原语与锁)
 
 
 
@@ -1111,7 +1112,373 @@ type Context interface {
      }
      ```
 
-     
+---
+
+
+
+### 同步原语与锁
+
+#### 标准原语
+
+- 在`sync`包里提供了基本原语
+
+![golang-basic-sync-primitives](2020-01-23-15797104327981-golang-basic-sync-primitives.png)
+
+##### `sync.Mutex`
+
+- `sync.mutex`由两个字段`state`和`sema`组成
+
+  ```go
+  type Mutex struct {
+  	state int32
+  	sema  uint32
+  }
+  ```
+
+  - `state`表示互斥锁的状态，由以下四个部分组成
+
+    ![golang-mutex-state](2020-01-23-15797104328010-golang-mutex-state.png)
+
+    - `waitersCount`
+
+    - `mutexStarving`
+
+      ![golang-mutex-mode](2020-01-23-15797104328020-golang-mutex-mode.png)
+
+      区分正常模式和饥饿模式，新唤醒的`goroutine`容易进入饥饿的状态，所以只要`goroutine`等待超过1ms，**饥饿模式将被唤醒**，此时，新进来的`goroutine`将不会获得锁；当等待队列末尾的`goroutine`获得了资源，或者等待时间小于1ms，则**切换为正常模式**。
+
+    - `mutexWoken`
+
+    - `mutexLocked`
+
+- `Lock()`过程比较复杂，它涉及自旋、信号量以及调度等概念：
+  - 如果互斥锁处于初始化状态，会通过置位 `mutexLocked` 加锁；
+  - 如果互斥锁处于 `mutexLocked` 状态并且在普通模式下工作，会进入自旋，执行 30 次 `PAUSE` 指令消耗 CPU 时间等待锁的释放；
+  - 如果当前`goroutine`等待锁的时间超过了 1ms，互斥锁就会切换到饥饿模式；
+  - 互斥锁在正常情况下会通过`runtime.sync_runtime_SemacquireMutex` 将尝试获取锁的`goroutine`切换至休眠状态，等待锁的持有者唤醒；
+  - 如果当前`goroutine`是互斥锁上的最后一个等待的协程或者等待的时间小于 1ms，那么它会将互斥锁切换回正常模式；
+- `Unlock()`过程与之相比就比较简单，其代码行数不多、逻辑清晰，也比较容易理解：
+  - 当互斥锁已经被解锁时，调用`sync.Mutex.Unlock`会直接抛出异常；
+  - 当互斥锁处于饥饿模式时，将锁的所有权交给队列中的下一个等待者，等待者会负责设置 `mutexLocked` 标志位；
+  - 当互斥锁处于普通模式时，如果没有`goroutine`等待锁的释放或者已经有被唤醒的`goroutine`获得了锁，会直接返回；在其他情况下会通过`sync.runtime_Semrelease`唤醒对应的`goroutine`；
+
+##### `sync.RWMutex`
+
+- 经典读写锁，读读不阻塞，写操作会阻塞其他操作，其结构体内部是经典的读计数器和写控制，复用了互斥锁用来锁住资源（写操作时）
+  - `writerSem` 和 `readerSem` — 分别用于写等待读和读等待写：
+  - `readerCount` 存储了当前正在执行的读操作数量；
+  - `readerWait` 表示当写操作被阻塞时等待的读操作个数；
+
+```go
+type RWMutex struct {
+	w           Mutex
+	writerSem   uint32
+	readerSem   uint32
+	readerCount int32
+	readerWait  int32
+}
+```
+
+- `RWMutex.Lock`写锁，获取互斥锁，因此后续到达的请求会被阻塞；而之前获得的读锁，则会让写操作进行休眠，读操作执行完后释放`writerSem`将写操作唤醒；
+- `RWMutex.Unlock`首先将`readerCount`变成正数释放读锁并循环唤起等待中的`goroutine`，最后调用`Mutex.Unlock`释放写锁；
+- `RWMutex.RLock`读锁只会把`readerCount`加一，当相加后的值仍为负数，那么意味着有写锁，则进入休眠等待，否则立即返回，即可访问资源；
+- `RWMutex.RUnlock`对`readerCount`进行减一的操作，当返回值为非负整数时，直接解锁；当返回值为负数时，表示此时资源被写锁持有，此时会去减少读等待数`readerWait`，如果时最后一个，则同时触发`writerSem`去唤醒等待读队列的写锁；
+
+##### `WaitGroup`
+
+- 比较适合在并发处理的场景中完成同步操作
+
+```go
+wg := &sync.WaitGroup{}
+wg.Add(len(requests))
+
+for _, request := range requests {
+	go func(r *Request) {
+		defer wg.Done()
+	}(request)
+}
+wg.wait()
+```
+
+![golang-syncgroup](2020-01-23-15797104328028-golang-syncgroup.png)
+
+```go
+type WaitGroup struct {
+	noCopy noCopy
+	state1 [3]uint32
+}
+```
+
+- `noCopy` — 保证`sync.WaitGroup`不会被开发者通过再赋值的方式拷贝；
+
+  - `sync.noCopy`是一个特殊的私有结构体，`tools/go/analysis/passes/copylock`包中的分析器会在编译期间检查被拷贝的变量中是否包含`sync.noCopy`或者实现了 `Lock` 和 `Unlock` 方法，如果包含该结构体或者实现了对应的方法就会报出错误；
+
+- `state1` — 存储着状态和信号量；
+
+  ![golang-waitgroup-state](2020-01-23-15797104328035-golang-waitgroup-state.png)
+
+- `wg.Add`更新`state1`里的`counter`字段，计数器应该是非负的，因此只要计数器为负数则引发`panic`；
+- `wg.Done`等于`wg.Add(-1)`；
+- `wg.Wait`在上述计数器归零时返回，而计数器大于0且不存在等待的`goroutine`的时候进行休眠；
+
+##### `sync.Once`
+
+```go
+type Once struct {
+	done uint32
+	m    Mutex
+}
+```
+
+- `sync.Once.Do`是`sync.Once`结构体对外唯一暴露的方法，该方法会接收一个入参为空的函数；
+  - 如果传入的函数已经执行过，会直接返回；
+  - 如果传入的函数没有执行过，会调用`sync.Once.doSlow`执行传入的函数；
+
+##### `sync.Cond`
+
+- 可以让一组`goroutine`在特定的条件下被唤醒，使用`sync.NewCond`传入一个互斥锁来初始化
+
+  - `noCopy` — 用于保证结构体不会在编译期间拷贝；
+
+  - `copyChecker` — 用于禁止运行期间发生的拷贝；
+
+  - `L` — 用于保护内部的 `notify` 字段，`Locker` 接口类型的变量；
+
+  - `notify` — 一个 Goroutine 的链表，它是实现同步机制的核心结构；
+
+    - 在`sync.notifyList`结构体中，`head` 和 `tail` 分别指向的链表的头和尾，`wait` 和 `notify` 分别表示当前正在等待的和已经通知到的 Goroutine 的索引。
+
+      ![golang-cond-notifylist](2020-01-23-15797104328049-golang-cond-notifylist.png)
+
+```go
+type Cond struct {
+	noCopy  noCopy
+	L       Locker
+	notify  notifyList
+	checker copyChecker
+}
+```
+
+- `Cond.Signal`方法唤醒队列最前端的`goroutine`，即等待时间最长的；
+- `Cond.Broadcast`方法唤醒等待队列里所有的`goroutine`
+
+#### 扩展原语
+
+![golang-extension-sync-primitives](2020-01-23-15797104328056-golang-extension-sync-primitives.png)
+
+##### `errgroup.Group`
+
+- `errgroup.Group`提供了上下文取消，同步和错误传播的功能
+
+```go
+type Group struct {
+	cancel func()
+
+	wg sync.WaitGroup
+
+	errOnce sync.Once
+	err     error
+}
+```
+
+```go
+var g errgroup.Group
+var urls = []string{
+    "http://www.golang.org/",
+    "http://www.google.com/",
+}
+for i := range urls {
+    url := urls[i]
+    g.Go(func() error {
+        resp, err := http.Get(url)
+        if err == nil {
+            resp.Body.Close()
+        }
+        return err
+    })
+}
+if err := g.Wait(); err == nil {
+    fmt.Println("Successfully fetched all URLs.")
+}
+```
+
+- `Group.WithContext`初始化`errgroup`
+
+  ```go
+  func WithContext(ctx context.Context) (*Group, context.Context) {
+  	ctx, cancel := context.WithCancel(ctx)
+  	return &Group{cancel: cancel}, ctx
+  }
+  ```
+
+- `Group.Go`创建一个`gorountine`并执行其中的函数
+
+  ```go
+  func (g *Group) Go(f func() error) {
+  	g.wg.Add(1)
+  
+  	go func() {
+  		defer g.wg.Done()
+  
+  		if err := f(); err != nil {
+  			g.errOnce.Do(func() {
+  				g.err = err
+  				if g.cancel != nil {
+  					g.cancel()
+  				}
+  			})
+  		}
+  	}()
+  }
+  ```
+
+- `Group.Wait`等待所有的`gorountine`执行完成并返回`error`
+
+  ```go
+  func (g *Group) Wait() error {
+  	g.wg.Wait()
+  	if g.cancel != nil {
+  		g.cancel()
+  	}
+  	return g.err
+  }
+  ```
+
+  - `nil`所有的都执行成功
+  - `err`至少有一个`goroutine`返回了错误，只有第一个出现的错误才会被返回，剩余的错误会被直接丢弃；
+
+##### `semaphore.Weighted`
+
+- 信号量机制，每次获取资源时都会将信号量中的计数器减去对应的数值，在释放时重新加回来；当遇到计数器大于信号量大小时，会进入休眠等待其他线程释放信号；
+
+```go
+type Weighted struct {
+	size    int64
+	cur     int64
+	mu      sync.Mutex
+	waiters list.List
+}
+```
+
+![golang-semaphore](2020-01-23-15797104328063-golang-semaphore.png)
+
+- `semaphore.NewWeighted`初始化信号量
+
+  ```go
+  func NewWeighted(n int64) *Weighted {
+  	w := &Weighted{size: n}
+  	return w
+  }
+  ```
+
+- `Weighted.Acquire`阻塞地获得信号量
+
+  ```go
+  func (s *Weighted) Acquire(ctx context.Context, n int64) error {
+  	if s.size-s.cur >= n && s.waiters.Len() == 0 {
+  		s.cur += n
+  		return nil
+  	}
+  
+  	...
+  	ready := make(chan struct{})
+  	w := waiter{n: n, ready: ready}
+  	elem := s.waiters.PushBack(w)
+  	select {
+  	case <-ctx.Done():
+  		err := ctx.Err()
+  		select {
+  		case <-ready:
+  			err = nil
+  		default:
+  			s.waiters.Remove(elem)
+  		}
+  		return err
+  	case <-ready:
+  		return nil
+  	}
+  }
+  ```
+
+- `Weighted.TryAcquire`非阻塞地获得信号量
+
+  ```go
+  func (s *Weighted) TryAcquire(n int64) bool {
+  	s.mu.Lock()
+  	success := s.size-s.cur >= n && s.waiters.Len() == 0
+  	if success {
+  		s.cur += n
+  	}
+  	s.mu.Unlock()
+  	return success
+  }
+  ```
+
+- `Weighted.Release`释放信号量
+
+  ```go
+  func (s *Weighted) Release(n int64) {
+  	s.mu.Lock()
+  	s.cur -= n
+  	for {
+  		next := s.waiters.Front()
+  		if next == nil {
+  			break
+  		}
+  		w := next.Value.(waiter)
+  		if s.size-s.cur < w.n {
+  			break
+  		}
+  		s.cur += w.n
+  		s.waiters.Remove(next)
+  		close(w.ready)
+  	}
+  	s.mu.Unlock()
+  }
+  ```
+
+##### `singleflight.Group`
+
+- `Do(key string, fn func() (interface{}, error))`该方法的`Do`的方法需要`key`，内部会维护一个`map`来过滤“重复”的请求；
+
+```go
+type Group struct {
+	mu sync.Mutex
+	m  map[string]*call
+}
+
+type call struct {
+	wg sync.WaitGroup
+
+	val interface{}
+	err error
+
+	dups  int
+	chans []chan<- Result
+}
+```
+
+- `singleflight.call`结构体中的 `val` 和 `err` 字段都只会在执行传入的函数时赋值一次并在`sync.WaitGroup.Wait`返回时被读取；`dups` 和 `chans` 两个字段分别存储了抑制的请求数量以及用于同步结果的 `channel`。
+- `Group.Do`同步的方法获取结果，每次调用的时候u都会获取互斥锁，然后判断是否过滤；
+- `Group.DoChan`异步获取结果，可以通过这个实现读取的超时控制；
+
+```go
+ch := g.DoChan(key, func() (interface{}, error) {
+    ret, err := find(context.Background(), key)
+    return ret, err
+})
+// Create our timeout
+timeout := time.After(500 * time.Millisecond)
+
+var ret singleflight.Result
+select {
+case <-timeout: // Timeout elapsed
+        fmt.Println("Timeout")
+    return
+case ret = <-ch: // Received result from channel
+    fmt.Printf("index: %d, val: %v, shared: %v\n", j, ret.Val, ret.Shared)
+}
+```
 
 ---
 
