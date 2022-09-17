@@ -28,6 +28,9 @@
 16. [`make`和`new`](#`make`和`new`)
 17. [`context.Context`](#`context.Context`)
 18. [同步原语与锁](#同步原语与锁)
+19. [计时器](#计时器)
+20. [`channel`](#`channel`)
+21. [GMP调度器](#GMP调度器)
 
 
 
@@ -1479,6 +1482,387 @@ case ret = <-ch: // Received result from channel
     fmt.Printf("index: %d, val: %v, shared: %v\n", j, ret.Val, ret.Shared)
 }
 ```
+
+---
+
+
+
+### 计时器
+
+##### 全局四叉堆（before Go 1.9）
+
+- `goroutine` 会运行时间驱动的事件，运行时会在发生以下事件时唤醒计时器：
+  - 四叉堆中的计时器到期；
+  - 四叉堆中加入了触发时间更早的新计时器；
+- 然而全局四叉堆共用的互斥锁对计时器的影响非常大，计时器的各种操作都需要获取全局唯一的互斥锁，这会严重影响计时器的性能；
+
+```go
+var timers struct {
+	lock         mutex
+	gp           *g
+	created      bool
+	sleeping     bool
+	rescheduling bool
+	sleepUntil   int64
+	waitnote     note
+	t            []*timer
+}
+```
+
+![golang-timer-quadtree](2020-01-25-15799218054781-golang-timer-quadtree.png)
+
+##### 分片四叉堆（Go 1.10~Go 1.13）
+
+- 分片四叉堆仍是四叉堆的思想，但是由于切割成更小的堆，所以减少了全局锁对性能的影响，以牺牲内存占用的代价换取性能的提升；
+- 其原意是一个处理器（P）对应一个堆，但是处理器超过64时，引入桶（bucket）来存放额外的计时器；
+- 这样的设计也会引出处理器和协程之间频繁上下文切换，造成性能下降；
+
+```go
+const timersLen = 64
+
+var timers [timersLen]struct {
+	timersBucket
+}
+
+type timersBucket struct {
+	lock         mutex
+	gp           *g
+	created      bool
+	sleeping     bool
+	rescheduling bool
+	sleepUntil   int64
+	waitnote     note
+	t            []*timer
+}
+```
+
+![golang-timer-bucket](2020-01-25-15799218054791-golang-timer-bucket.png)
+
+##### 网络轮询器（after Go 1.14)
+
+- 新版本中计时器都以最小四叉堆的形式存储再处理器中，目前计时器都交由处理器的网络轮询器和调度器触发，这种方式能够充分利用本地性、减少上下文的切换开销，也是目前性能最好的实现方式；
+  - `timersLock` — 用于保护计时器的互斥锁；
+  - `timers` — 存储计时器的最小四叉堆；
+  - `numTimers` — 处理器中的计时器数量；
+  - `adjustTimers` — 处理器中处于 `timerModifiedEarlier` 状态的计时器数量；
+  - `deletedTimers` — 处理器中处于 `timerDeleted` 状态的计时器数量；
+
+![golang-p-and-timers](2020-01-25-15799218054798-golang-p-and-timers.png)
+
+```go
+type p struct {
+	...
+	timersLock mutex
+	timers []*timer
+
+	numTimers     uint32
+	adjustTimers  uint32
+	deletedTimers uint32
+	...
+}
+```
+
+- 对外暴露的结构体`Timer`
+
+```go
+type Timer struct {
+	C <-chan Time
+	r runtimeTimer
+}
+```
+
+##### 计时器状态表
+
+| 状态                 |          解释          |
+| :------------------- | :--------------------: |
+| timerNoStatus        |     还没有设置状态     |
+| timerWaiting         |        等待触发        |
+| timerRunning         |     运行计时器函数     |
+| timerDeleted         |         被删除         |
+| timerRemoving        |       正在被删除       |
+| timerRemoved         | 已经被停止并从堆中删除 |
+| timerModifying       |       正在被修改       |
+| timerModifiedEarlier |  被修改到了更早的时间  |
+| timerModifiedLater   |  被修改到了更晚的时间  |
+| timerMoving          |  已经被修改正在被移动  |
+
+##### `runtime.addtimer`
+
+- `time.NewTimer`增加计时器（`timerNoSatus`→``timerWaiting`）
+
+  ```go
+  func addtimer(t *timer) {
+  	if t.status != timerNoStatus {
+  		badTimer()
+  	}
+  	t.status = timerWaiting
+  	cleantimers(pp)
+  	doaddtimer(pp, t)
+  	wakeNetPoller(when)
+  }
+  ```
+
+##### `runtime.deltimer`
+
+- 标记需要删除的计时器，这是因为在删除计时器的过程中，可能会遇到其他处理器的计时器，在设置我们需要将计时器标记为删除状态，并由持有计时器的处理器完成清除工作；
+  - `timerWaiting` →`timerModifying`→ `timerDeleted`
+  - `timerModifiedEarlier` →`timerModifying` → `timerDeleted`
+  - `timerModifiedLater` → `timerModifying` → `timerDeleted`
+
+##### `runtime.modtimer`
+
+```go
+func modtimer(t *timer, when, period int64, f func(interface{}, uintptr), arg interface{}, seq uintptr) bool {
+	status := uint32(timerNoStatus)
+	wasRemoved := false
+loop:
+	for {
+		switch status = atomic.Load(&t.status); status {
+			...
+		}
+	}
+
+	t.period = period
+	t.f = f
+	t.arg = arg
+	t.seq = seq
+
+	if wasRemoved {
+		t.when = when
+		doaddtimer(pp, t)
+		wakeNetPoller(when)
+	} else {
+		t.nextwhen = when
+		newStatus := uint32(timerModifiedLater)
+		if when < t.when {
+			newStatus = timerModifiedEarlier
+		}
+		...
+		if newStatus == timerModifiedEarlier {
+			wakeNetPoller(when)
+		}
+	}
+}
+```
+
+- 会修改已存在的计时器
+  - `timerWaiting` →  `timerModifying` →  `timerModifiedXX`
+  - `timerModifiedXX` →  `timerModifying` →  `timerModifiedYY`
+  - `timerNoStatus` →  `timerModifying` →  `timerWaiting`
+  - `timerRemoved` →  `timerModifying` →  `timerWaiting`
+  - `timerDeleted` →  `timerModifying` →  `timerWaiting`
+- 如果待修改的计时器已经被删除，那么该函数会调用`runtime.doaddtimer`创建新的计时器。在正常情况下会根据修改后的时间进行不同的处理：
+  - 如果修改后的时间大于或者等于修改前时间，设置计时器的状态为 `timerModifiedLater`；
+  - 如果修改后的时间小于修改前时间，设置计时器的状态为 `timerModifiedEarlier` 并调用触发调度器的重新调度；
+
+##### `runtime.cleantimers`
+
+- 函数会根据状态清理处理器队列头中的计时器，该函数会遵循以下的规则修改计时器的触发时间
+  - `timerDeleted` → `timerRemoving` → `timerRemoved`
+  - `timerModifiedXX` → `timerMoving` → `timerWaiting`
+
+---
+
+
+
+### `channel`
+
+- 线程（协程）之间需要通信，传统的做法是使用共享内存进行通信，但是共享内存涉及线程（协程）竞争，加减锁的过程也有很大消耗；
+- Go使用了了通信顺序进程（Communicating Sequential Processes，CSP），`goroutine`是CSP中的实体，`channel`是传递信息的媒介，`channel`通信依循FIFO的策略；
+
+![channel-and-goroutines](2020-01-28-15802171487080-channel-and-goroutines.png)
+
+- `channel`不带缓冲区
+
+![channel-direct-send](2020-01-29-15802354027250-channel-direct-send.png)
+
+- `channel`带缓冲区
+
+![channel-buffer-send](2020-01-28-15802171487104-channel-buffer-send.png)
+
+---
+
+
+
+### GMP调度器
+
+- Go语言为了减少哪怕是线程切换的开销，实现了所谓协程的`goroutine`来降低操作系统的负担；
+
+![goroutines-on-thread](2020-02-05-15808864354586-goroutines-on-thread.png)
+
+- GMP模型是Go语言经典的调度器
+  - `G` → 表示`goroutine`，是一个等待执行的任务；
+  - `M` → 表示操作系统的线程，由操作系统的调度器调度和管理；
+  - `P` → 表示处理器，它可以被看作是Go的本地调度器，协调协程和线程之间的关系；
+
+##### `G`
+
+- `goroutine` 是 Go 语言调度器中待执行的任务，它在运行时调度器中的地位与线程在操作系统中差不多，但是它占用了更小的内存空间，也降低了上下文切换的开销。
+- `goroutine` 只存在于 Go 语言的运行时，它是 Go 语言在用户态提供的线程，作为一种粒度更细的资源调度单元，如果使用得当能够在高并发的场景下更高效地利用机器的 CPU。
+
+###### 结构体`runtime.g`
+
+```go
+// stack
+type g struct {
+    ...
+	stack       stack
+	stackguard0 uintptr
+    ...
+}
+```
+
+- `stack`字段描述了当前`goroutine`持有的栈内存范围$[stack.low,stack.high)$；
+- `stackguard0`可以用于调度器出发抢占模式；
+
+```go
+// preemption（抢占）
+type g struct {
+    ...
+	preempt       bool // 抢占信号
+	preemptStop   bool // 抢占时将状态转变为_Gpreempted，否则的话，取消转变
+	preemptShrink bool // 在同步安全点收缩栈
+    ...
+}
+```
+
+```go
+// defer & panic
+type g struct {
+	...
+	_panic       *_panic // 最内侧的 panic 结构体
+	_defer       *_defer // 最内侧的延迟函数结构体
+	...
+}
+```
+
+- `defer`和`panic`的结构体链表，用于顺序执行；
+
+```go
+// other important
+type g struct {
+    ...
+	m              *m 		// 当前占用的系统线程，可能为空
+	atomicstatus   uint32 	// goroutine的状态
+	sched          gobuf 	// 存储goroutine的调度相关的数据
+    ...
+}
+
+type gobuf struct {
+	sp   uintptr		// 栈指针
+	pc   uintptr		// 程序计数器
+	g    guintptr		// 持有该gobuf的goroutine
+	ret  sys.Uintreg	// 系统调用的返回值
+	...
+}
+```
+
+###### `atomicstatus`
+
+| 状态          | 描述                                                         |
+| ------------- | ------------------------------------------------------------ |
+| `_Gidle`      | 刚刚被分配并且还没有被初始化                                 |
+| `_Grunnable`  | 没有执行代码，没有栈的所有权，存储在运行队列中               |
+| `_Grunning`   | 可以执行代码，拥有栈的所有权，被赋予了内核线程 M 和处理器 P  |
+| `_Gsyscall`   | 正在执行系统调用，拥有栈的所有权，没有执行用户代码，被赋予了内核线程 M 但是不在运行队列上 |
+| `_Gwaiting`   | 由于运行时而被阻塞，没有执行用户代码并且不在运行队列上，但是可能存在于 Channel 的等待队列上 |
+| `_Gdead`      | 没有被使用，没有执行代码，可能有分配的栈                     |
+| `_Gcopystack` | 栈正在被拷贝，没有执行代码，不在运行队列上                   |
+| `_Gpreempted` | 由于抢占而被阻塞，没有执行用户代码并且不在运行队列上，等待唤醒 |
+| `_Gscan`      | GC 正在扫描栈空间，没有执行代码，可以与其他状态同时存在      |
+
+![golang-goroutine-state-transition](2020-02-05-15808864354615-golang-goroutine-state-transition.png)
+
+- 等待中：Goroutine 正在等待某些条件满足，例如：系统调用结束等，包括 `_Gwaiting`、`_Gsyscall` 和 `_Gpreempted` 几个状态；
+- 可运行：Goroutine 已经准备就绪，可以在线程运行，如果当前程序中有非常多的 Goroutine，每个 Goroutine 就可能会等待更多的时间，即 `_Grunnable`；
+- 运行中：Goroutine 正在某个线程上运行，即 `_Grunning`；
+
+
+
+##### `M`
+
+- Go语言的操作系统级线程，由调度器创建，但是未必全部运行用户的代码，因为有Go语言自己的调度器，最多只有`GOMAXPROCS`个活跃线程能够正常运行；在大多数情况下，我们都会使用 Go 的默认设置，也就是线程数等于 CPU 数，默认的设置不会频繁触发操作系统的线程调度和上下文切换，所有的调度都会发生在用户态，由 Go 语言调度器触发，能够减少很多额外开销。
+
+![scheduler-m-and-thread](2020-02-05-15808864354634-scheduler-m-and-thread.png)
+
+###### `runtime.m`
+
+```go
+type m struct {
+	...
+    g0   *g		// 持有调度栈的goroutine
+	curg *g		// 当前运行在线程上的goroutine
+	...
+}
+```
+
+![g0-and-g](2020-02-05-15808864354644-g0-and-g.png)
+
+```go
+type m struct {
+	...
+    p             puintptr	// 正在运行代码的处理器
+	nextp         puintptr	// 暂存的处理器
+	oldp          puintptr	// 执行系统调用之前线程的处理器
+    ...
+}
+```
+
+
+
+##### `P`
+
+- 调度器中的处理器 P 是线程和 `goroutine` 的中间层，它能提供线程需要的上下文环境，也会负责调度线程上的等待队列，通过处理器 P 的调度，每一个内核线程都能够执行多个 `goroutine`，它能在 `goroutine` 进行一些 I/O 操作时及时让出计算资源，提高线程的利用率。
+- 因为调度器在启动时就会创建 `GOMAXPROCS` 个处理器，所以 Go 语言程序的处理器数量一定会等于 `GOMAXPROCS`，这些处理器会绑定到不同的内核线程上。
+
+```go
+type p struct {
+    ...
+	m        muintptr
+
+	runqhead uint32
+	runqtail uint32
+	runq     [256]guintptr	// 处理器持有的运行队列，存储着待执行的goroutine列表
+	runnext  guintptr		// 下一个要执行的goroutine
+    
+    status   uint32	 		// 处理器状态
+	...
+}
+```
+
+| 状态        | 描述                                                         |
+| ----------- | ------------------------------------------------------------ |
+| `_Pidle`    | 处理器没有运行用户代码或者调度器，被空闲队列或者改变其状态的结构持有，运行队列为空 |
+| `_Prunning` | 被线程 M 持有，并且正在执行用户代码或者调度器                |
+| `_Psyscall` | 没有执行用户代码，当前线程陷入系统调用                       |
+| `_Pgcstop`  | 被线程 M 持有，当前处理器由于垃圾回收被停止                  |
+| `_Pdead`    | 当前处理器已经不被使用                                       |
+
+
+
+#### 调度过程
+
+##### 获得新的`goroutine`
+
+- 有三种方法能够获得新的`goroutine`资源，分为两大类共三种方法；
+
+![golang-newproc-get-goroutine](golang-newproc-get-goroutine.png)
+
+1. `runtime.gfget`中包含两部分逻辑，它会根据处理器中 `gFree` 列表中 `goroutine` 的数量做出不同的决策：
+
+   - 当处理器的 `goroutine` 列表为空时，会将调度器持有的空闲 `goroutine` 转移到当前处理器上，直到 `gFree` 列表中的 `goroutine` 数量达到 32；
+
+   - 当处理器的 `goroutine` 数量充足时，会从列表头部返回一个新的 `goroutine` ；
+
+2. 当调度器的 `gFree` 和处理器的 `gFree` 列表都不存在结构体时，运行时会调用 `runtime.malg`初始化新的 `runtime.g`结构，如果申请的堆栈大小大于 0，这里会通过``runtime.stackalloc`分配 2KB 的栈空间；
+
+##### 运行队列的调度
+
+- Go语言存在两种队列，一个是全局的运行队列，由调度器持有，而处理器本地也维护了一个运行队列，只有在本地运行队列没有剩余空间时才会使用全局队列；
+
+![golang-runnable-queue](2020-02-05-15808864354654-golang-runnable-queue.png)
+
+
 
 ---
 
