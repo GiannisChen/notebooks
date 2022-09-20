@@ -2040,6 +2040,115 @@ func WriteJSON(w http.ResponseWriter, obj any) error {
 
 
 
+#### 中间件
+
+- 中间件的注册和调用其实没有多少技术含量，其实是一个调用方程数组（其实官方叫法应该叫切片来着~）。一般调用 `Engine.Use()` 来注册中间件：
+
+```go
+// Use attaches a global middleware to the router. i.e. the middleware attached through Use() will be
+// included in the handlers chain for every single request. Even 404, 405, static files...
+// For example, this is the right place for a logger or error management middleware.
+func (engine *Engine) Use(middleware ...HandlerFunc) IRoutes {
+	engine.RouterGroup.Use(middleware...)
+	engine.rebuild404Handlers()
+	engine.rebuild405Handlers()
+	return engine
+}
+```
+
+👇
+
+```go
+// Use adds middleware to the group, see example code in GitHub.
+func (group *RouterGroup) Use(middleware ...HandlerFunc) IRoutes {
+	group.Handlers = append(group.Handlers, middleware...)
+	return group.returnObj()
+}
+```
+
+- 很简单的 `append()` 方程，只要加到 `group.Handlers` 里就是了，包括在注册路由时候添加到 `node` 节点里：
+
+```go
+// HandlersChain defines a HandlerFunc slice.
+type HandlersChain []HandlerFunc
+```
+
+```go
+func (group *RouterGroup) handle(httpMethod, relativePath string, handlers HandlersChain) IRoutes {
+	absolutePath := group.calculateAbsolutePath(relativePath)
+	handlers = group.combineHandlers(handlers)
+	group.engine.addRoute(httpMethod, absolutePath, handlers)
+	return group.returnObj()
+}
+```
+
+```go
+func (group *RouterGroup) combineHandlers(handlers HandlersChain) HandlersChain {
+	finalSize := len(group.Handlers) + len(handlers)
+	assert1(finalSize < int(abortIndex), "too many handlers")
+	mergedHandlers := make(HandlersChain, finalSize)
+	copy(mergedHandlers, group.Handlers)
+	copy(mergedHandlers[len(group.Handlers):], handlers)
+	return mergedHandlers
+}
+```
+
+- 接下来考虑中间件的执行，不难发现，执行过程就是方程切片从头遍历到尾罢了，这里有几个比较典型的迭代方程，`gin.Context.Next()` ，`gin.Context.Set()` ，`gin.Context.Get()` 和 `gin.Context.Abort()` ：
+
+```go
+// Next should be used only inside middleware.
+// It executes the pending handlers in the chain inside the calling handler.
+// See example in GitHub.
+func (c *Context) Next() {
+	c.index++
+	for c.index < int8(len(c.handlers)) {
+		c.handlers[c.index](c)
+		c.index++
+	}
+}
+```
+
+```go
+// Abort prevents pending handlers from being called. Note that this will not stop the current handler.
+// Let's say you have an authorization middleware that validates that the current request is authorized.
+// If the authorization fails (ex: the password does not match), call Abort to ensure the remaining handlers
+// for this request are not called.
+func (c *Context) Abort() {
+	c.index = abortIndex
+}
+```
+
+![image-gin-nextRun](images/image-gin-nextRun.svg)
+
+- 在 `handersChain` 中传播时，可以通过中间件设置默写参数以供后面的处理函数使用：
+
+```go
+// Set is used to store a new key/value pair exclusively for this context.
+// It also lazy initializes  c.Keys if it was not used previously.
+func (c *Context) Set(key string, value any) {
+	c.mu.Lock()
+	if c.Keys == nil {
+		c.Keys = make(map[string]any)
+	}
+
+	c.Keys[key] = value
+	c.mu.Unlock()
+}
+
+// Get returns the value for the given key, ie: (value, true).
+// If the value does not exist it returns (nil, false)
+func (c *Context) Get(key string) (value any, exists bool) {
+	c.mu.RLock()
+	value, exists = c.Keys[key]
+	c.mu.RUnlock()
+	return
+}
+```
+
+![image-gin-handlerChanSetGet](images/image-gin-handlerChanSetGet.svg)
+
+
+
 ### 后记 2022.09.20
 
 不得不感叹 `Gin` 简洁明了，接下来就是 `net/http` 的源码了。😀
