@@ -2004,3 +2004,187 @@ func VariablePaddingStandard(tableLikeStrings [][]string) {
 }
 ```
 
+
+
+
+
+# Go中的设计模式
+
+## 单例模式（`Singleton Pattern`）
+
+#### Go中的单例模式需要注意哪些？
+
+- 多线程是高并发服务器中必须的，然而**单例模式**中容易遇到**线程不安全**的情况：
+
+  ```go
+  package singleton
+  
+  type singleton struct {
+  }
+  
+  var instance *singleton
+  
+  func GetInstance() *singleton {
+  	if instance == nil {
+  		instance = &singleton{}   // <--- NOT THREAD SAFE
+  	}
+  	return instance
+  }
+  ```
+
+  在上面的场景中，多个 `Goroutine` 并发访问未初始化的 `instance` 变量，由于他是全局的，因此都将返回 `instance` 是 `nil` ，并将 `instance` 各自初始化。这会导致相互之间的覆盖，并且你不知道到底哪个会被最终采纳。😭
+
+  对实例的其他进一步操作可能与开发人员的预期不一致，在调试过程中，这也成为了一场真正的噩梦，很难发现这种**bug**，因为在调试时，由于运行时暂停最小化了非线程安全执行的可能性，所以似乎没有任何问题，很容易对开发人员隐藏问题。
+
+
+
+#### 激进的加锁策略
+
+- 最简单直白的方式是**加锁**，这会直接把多线程运行变成串行运行：
+
+  ```go
+  var mu Sync.Mutex
+  
+  func GetInstance() *singleton {
+      mu.Lock()                    // <--- Unnecessary locking if instance already created
+      defer mu.Unlock()
+  
+      if instance == nil {
+          instance = &singleton{}
+      }
+      return instance
+  }
+  ```
+
+  但是这会带来性能的瓶颈，毕竟 `sync.Mutex` 是一个很贵的操作，当 `instance` 已经被初始化，而且这很可能只需要初始化一次，后面更多的是直接返回 `instance` 了，所以我只希望花费 `if` 的耗时，而不是加减锁。
+
+
+
+#### `Check-Lock-Check` 模式的加锁策略
+
+- 在例如 `C++` 等语言中，最佳的解决方案是 `Check-Lock-Check` 模式：
+
+  ```c++
+  if check() {
+      lock() {
+          if check() {
+              // perform your lock-safe code here
+          }
+      }
+  }
+  ```
+
+  这种方式会首先判断是否为 `null` ，这会直接过滤掉初始化请求生效后的获取请求，这样只需要一个 `if` 的开销就行了。等到判断并未初始化后，再去请求锁，同时也需要判断操作以免覆盖。这并**不是**在 `Go` 中最佳的解决方案：
+
+  ```go
+  func GetInstance() *singleton {
+      if instance == nil {     // <-- Not yet perfect. since it's not fully atomic
+          mu.Lock()
+          defer mu.Unlock()
+  
+          if instance == nil {
+              instance = &singleton{}
+          }
+      }
+      return instance
+  }
+  ```
+
+  那该怎么操作呢？Go提供了官方包 `sync/atomic` 来解决一系列的原子性的问题，**一种方法**是引入线程安全的信号量来判断是否被初始化：
+
+  ```go
+  import "sync"
+  import "sync/atomic"
+  
+  var initialized uint32
+  ...
+  
+  func GetInstance() *singleton {
+  
+      if atomic.LoadUInt32(&initialized) == 1 {
+  		return instance
+  	}
+  
+      mu.Lock()
+      defer mu.Unlock()
+  
+      if initialized == 0 {
+           instance = &singleton{}
+           atomic.StoreUint32(&initialized, 1)
+      }
+  
+      return instance
+  }
+  ```
+
+  但是显然没人会这么写...
+
+
+
+#### Go中惯用的单例模式
+
+-  `sync.Once` 是Go中常用于单例模式的结构体。当使用他时，该方法不会执行两次，至多执行一次，这保证了初始化只执行一次：
+
+  ```go
+  package singleton
+  
+  import (
+      "sync"
+  )
+  
+  type singleton struct {
+  }
+  
+  var instance *singleton
+  var once sync.Once
+  
+  func GetInstance() *singleton {
+      once.Do(func() {
+          instance = &singleton{}
+      })
+      return instance
+  }
+  ```
+
+  因此，使用 `sync.Once` 包是安全地实现此目标的首选方式，类似于Objective-C和Swift（Cocoa）实现 `dispatch_once` 方法来执行类似的初始化。来看看 `sync.Once` 底层到底干了什么：
+
+  ```go
+  // Once is an object that will perform exactly one action.
+  type Once struct {
+  	m    Mutex
+  	done uint32
+  }
+  
+  // Do calls the function f if and only if Do is being called for the
+  // first time for this instance of Once. In other words, given
+  // 	var once Once
+  // if once.Do(f) is called multiple times, only the first call will invoke f,
+  // even if f has a different value in each invocation.  A new instance of
+  // Once is required for each function to execute.
+  //
+  // Do is intended for initialization that must be run exactly once.  Since f
+  // is niladic, it may be necessary to use a function literal to capture the
+  // arguments to a function to be invoked by Do:
+  // 	config.once.Do(func() { config.init(filename) })
+  //
+  // Because no call to Do returns until the one call to f returns, if f causes
+  // Do to be called, it will deadlock.
+  //
+  // If f panics, Do considers it to have returned; future calls of Do return
+  // without calling f.
+  //
+  func (o *Once) Do(f func()) {
+  	if atomic.LoadUint32(&o.done) == 1 { // <-- Check
+  		return
+  	}
+  	// Slow-path.
+  	o.m.Lock()                           // <-- Lock
+  	defer o.m.Unlock()
+  	if o.done == 0 {                     // <-- Check
+  		defer atomic.StoreUint32(&o.done, 1)
+  		f()
+  	}
+  }
+  ```
+
+  其实就是封装好了的上一个方法🙄

@@ -103,9 +103,9 @@ func DFS(g graph, n, m int) {
 
 ##### 图的遍历例题
 
-1. 常规的 `node-edge` 图，通过建立**邻接矩阵**或者**邻接表**（`ID-2`）然后遍历；
-2. 输入就是二维矩阵，可以看成是图，通常需要按规则遍历四周（`ID-1`，`ID-3`，`ID-4`），同时也要注意是否访问规则，`ID-1` 共享同一个访问标志矩阵，而 `ID-3` 需要维护能够回溯的标志；
-3. 
+1. 常规的 `node-edge` 图，通过建立**邻接矩阵**或者**邻接表**（`ID-2`，`ID-7`，`ID-9`）然后遍历；
+2. 输入就是二维矩阵，可以看成是图，通常需要按规则遍历四周（`ID-1`，`ID-3`，`ID-4`，`ID-5`，`ID-6`，`ID-8`），同时也要注意是否访问规则，`ID-1` 共享同一个访问标志矩阵，而 `ID-3` 需要维护能够回溯的标志；
+3. 把状态看成是 `node` 而状态转化看成是 `edge` ，转化为类似动态规划的问题，例如 `ID-7`，`ID-9`；
 
 | ID   | LeetCode 题号                                                | 描述                                  |
 | ---- | ------------------------------------------------------------ | ------------------------------------- |
@@ -117,9 +117,10 @@ func DFS(g graph, n, m int) {
 | 6    | [417. Pacific Atlantic Water Flow](https://leetcode.cn/problems/pacific-atlantic-water-flow/) | 不同海拔的海岛是否可达上下两侧        |
 | 7    | [127. Word Ladder](https://leetcode.cn/problems/word-ladder/) | 单词接龙，每次只能变化一个字符 `hard` |
 | 8    | [695. Max Area of Island](https://leetcode.cn/problems/max-area-of-island/) | 返回面积最大的岛的面积                |
+| 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | 按规则跳跃                            |
 
 
-把data(state)看成node, 把操作operation看成edge (127. Word Ladder, 1345. Jump Game IV) , 这种思路很多时候就变成了动态规划题
+![image-20220922144950834](C:/Users/10656/AppData/Roaming/Typora/typora-user-images/image-20220922144950834.png)
 拓扑排序（topological sort) 准备模板. ----
 决定nodes先后顺序(关系) （210. Course Schedule II， 269. Alien Dictionary）
 判断有向图是否有cycle (207. Course Schedule)
@@ -131,7 +132,7 @@ Dijkstra （用heap 写，准备模板） （1631. Path With Minimum Effort， 1
 并查集Union Find  准备模板
 用于快速合并图的不同components （305. Number of Islands II）
 用于快速判断两个nodes是不是连通
-回溯法 Backtracking 本质就是想象成图，然后递归的DFS（有时可以剪枝）  526. Beautiful Arrangement, 22. Generate Parentheses
+回溯法 Backtracking 本质就是想象成图，然后递归的DFS（有时可以剪枝)  526. Beautiful Arrangement, 22. Generate Parentheses
 . check 1point3acres for more.
 binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做BFS。类似的用binary search 查找答案的思路见【7. 搜索和查询 中的binary search部分】
 1102 Path With Maximum Minimum Value
@@ -304,3 +305,4 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
 | 6    | [417. Pacific Atlantic Water Flow](https://leetcode.cn/problems/pacific-atlantic-water-flow/) | `DFS` 反向操作，从边上向中心传播                             |
 | 7    | [127. Word Ladder](https://leetcode.cn/problems/word-ladder/) | `BFS` ，邻接表，用双向队列控制扇出                           |
 | 8    | [695. Max Area of Island](https://leetcode.cn/problems/max-area-of-island/) | `DFS` 多一个返回值，很直白                                   |
+| 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | `DFS`，我用了双队列优化，通过删邻接表来控制队列规模          |

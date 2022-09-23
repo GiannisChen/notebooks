@@ -1354,7 +1354,189 @@ http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 
 
+### `sqlx`
 
+- `sqlx` 是在Go标准库 `database/sql` 基础上的拓展，他提供了基于 `database/sql` 的一定封装，同样，也没对操作过程过度封装。
+- `sqlx` 将使用标准的 `error` 变量来指示正在返回的错误。
+
+
+
+#### `sqlx` 安装 
+
+- 我们将使用 `sqlx` 和 `clickhouse-go` 的组合来完成数据库的基础操作，包括增删改查（`CRUD`）。
+
+  ```shell
+  $ go get github.com/jmoiron/sqlx
+  $ go get github.com/ClickHouse/clickhouse-go/v2
+  ```
+
+- 该连接数据库了：
+
+  ```go
+  import (
+  	_ "github.com/ClickHouse/clickhouse-go/v2"
+  	"github.com/jmoiron/sqlx"
+  	"sync"
+  )
+  
+  var Conn *sqlx.DB
+  var once sync.Once
+  
+  func MustInitDB() {
+  	once.Do(func() {
+  		dsn := "clickhouse://default1:12345678@192.168.47.128:9000/gin"
+  		Conn = sqlx.MustConnect("clickhouse", dsn)
+  		Conn.SetMaxOpenConns(20)
+  		Conn.SetMaxIdleConns(10)
+  	})
+  }
+  ```
+
+  由于我们相当于采用了第三方包 `clickhouse-go` ，因此需要多做一个引用来覆盖原有的配置，`sqlx.DB` 自身维持了一个连接池，所以我们大胆地使用全局变量来初始化。
+
+
+
+#### `CRUD`
+
+- 首先我们需要定义一下 `format` 格式：
+
+  ```go
+  type User struct {
+  	FirstName string `form:"firstName" db:"firstName"`
+  	LastName  string `form:"lastName" db:"lastName"`
+  	Email     string `form:"email" db:"email" binding:"required,email"`
+  }
+  ```
+
+  其中 `db:"lastName"` 就是做自动填充或者自动绑定时需要的标签名；
+
+- 接下来把 `CRUD` 端上来罢~
+
+  - **`GetAllUsers`**：
+
+    ```go
+    func GetAllUsers(users *[]User) error {
+    	if err := Conn.Select(users, "SELECT * FROM gin.users"); err != nil {
+    		return err
+    	}
+    	return nil
+    }
+    ```
+
+  - **`GetUser`**：
+
+    ```go
+    func GetUser(user *User, email string) error {
+    	if err := Conn.Get(user, "SELECT * FROM gin.users WHERE email=? LIMIT 1", email); err != nil {
+    		return err
+    	}
+    	return nil
+    }
+    ```
+
+  - **`InsertUsers`**：
+
+    ```go
+    func InsertUsers(users ...User) error {
+    	if len(users) == 0 {
+    		return fmt.Errorf("insert 0 user(s)")
+    	}
+    
+    	for _, user := range users {
+    		if _, err := Conn.NamedExec("INSERT INTO gin.users (email,firstName,lastName) VALUES (:email,:firstName,:lastName)", user); err != nil {
+    			return err
+    		}
+    	}
+    	return nil
+    }
+    ```
+
+  - **`UpdateUsers`**：
+
+    ```go
+    func UpdateUsers(users ...User) error {
+    	for _, user := range users {
+    		if _, err := Conn.NamedExec("ALTER TABLE gin.users UPDATE firstName=:firstName,lastName=:lastName WHERE email=:email", user); err != nil {
+    			return err
+    		}
+    	}
+    	return nil
+    }
+    ```
+
+  - **`DeleteUser`**：
+
+    ```go
+    func DeleteUser(email string) error {
+    	if _, err := Conn.Exec("ALTER TABLE gin.users DELETE WHERE email=?", email); err != nil {
+    		return err
+    	}
+    
+    	return nil
+    }
+    ```
+
+#### 细节
+
+- 具体用法参考：https://jmoiron.github.io/sqlx/
+
+#### 特殊的 `sqlx.In`
+
+- **插入**
+
+  - 前提是需要结构体实现 `driver.Valuer` 接口：
+
+    ```go
+    func (u User) Value() (driver.Value, error) {
+    	return []interface{}{u.Email, u.FirstName, u.LastName}, nil
+    }
+    ```
+
+  - 使用`sqlx.In`实现批量插入代码如下：
+
+    ```go
+    // BatchInsertUsers2 使用sqlx.In帮我们拼接语句和参数, 注意传入的参数是[]interface{}
+    func BatchInsertUsers2(users []interface{}) error {
+    	query, args, _ := sqlx.In(
+    		"INSERT INTO users (email, firstName, lastName) VALUES (?), (?), (?)",users...) 	
+        // 如果arg实现了 driver.Valuer, sqlx.In 会通过调用 Value()来展开它
+    	fmt.Println(query) // 查看生成的querystring
+    	fmt.Println(args)  // 查看生成的args
+    	_, err := DB.Exec(query, args...)
+    	return err
+    }
+    ```
+
+- **查询**
+
+  - 在`sqlx`查询语句中实现In查询和FIND_IN_SET函数。即实现`SELECT * FROM user WHERE id IN (3, 2, 1);`和`SELECT * FROM user WHERE id IN (3, 2, 1) ORDER BY FIND_IN_SET(id, '3,2,1');`：
+
+    ```go
+    // QueryByIDs 根据给定emails查询
+    func QueryByEmails(emails []string)(users []User, err error){
+    	// 动态填充id
+    	query, args, err := sqlx.In("SELECT firstName, lastName FROM users WHERE email IN (?)", emails)
+    	if err != nil {
+    		return
+    	}
+    	// sqlx.In 返回带 `?` bindvar的查询语句, 我们使用Rebind()重新绑定它
+    	query = DB.Rebind(query)
+    
+    	err = DB.Select(&users, query, args...)
+    	return
+    }
+    ```
+
+
+
+#### 参考
+
+- https://www.liwenzhou.com/posts/Go/sqlx/
+- https://www.liwenzhou.com/posts/Go/sqlx_bulk_insert/
+- https://jmoiron.github.io/sqlx/
+- https://github.com/ClickHouse/clickhouse-go
+
+---
 
 ## `Gin` 源码
 
