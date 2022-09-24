@@ -17,6 +17,8 @@
 
 #### 图的遍历
 
+-  `Graph Traverse`
+
 ##### 通用结构
 
 ```go
@@ -120,9 +122,107 @@ func DFS(g graph, n, m int) {
 | 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | 按规则跳跃                            |
 
 
-![image-20220922144950834](C:/Users/10656/AppData/Roaming/Typora/typora-user-images/image-20220922144950834.png)
-拓扑排序（topological sort) 准备模板. ----
-决定nodes先后顺序(关系) （210. Course Schedule II， 269. Alien Dictionary）
+
+#### 拓扑排序
+
+- `Topological Sort`
+
+##### 关键路径问题（先后顺序）
+
+- 这种题从入度来考虑，有两种思路：（以 `ID-1` 为例，`ID-2` 同理）
+
+  1. `DFS` + 入度，利用**队列**来完成遍历，每次更新节点入度，比较直白；
+
+     ```go
+     func findOrder(numCourses int, prerequisites [][]int) (ans []int) {
+     	degrees := make([]int, numCourses)
+     	ans = make([]int, 0)
+     	linkList := make([][]int, numCourses)
+     
+     	for _, prerequisite := range prerequisites {
+     		a, b := prerequisite[0], prerequisite[1]
+     		degrees[a]++
+     		linkList[b] = append(linkList[b], a)
+     	}
+     
+     	queue := make([]int, 0)
+     	for i, degree := range degrees {
+     		if degree == 0 {
+     			queue = append(queue, i)
+     		}
+     	}
+     
+     	for len(queue) > 0 {
+     		q := queue[0]
+     		queue = queue[1:]
+     		ans = append(ans, q)
+     		for _, next := range linkList[q] {
+     			degrees[next]--
+     			if degrees[next] == 0 {
+     				queue = append(queue, next)
+     			}
+     		}
+     	}
+     	if len(ans) < numCourses {
+     		return nil
+     	}
+     	return ans
+     }
+     ```
+
+  2. `BFS` + 访问控制数组，通过递归到出度为零或者下一个节点都已访问过的节点为止，然后翻转；本质上是利用**栈**来完成遍历；
+
+     ```go
+     func findOrder(numCourses int, prerequisites [][]int) []int {
+     	linkList := make([][]int, numCourses)
+     	visits := make([]int, numCourses)
+     	ans := make([]int, 0)
+     
+     	var dfs func(int) bool
+     	dfs = func(node int) bool {
+     		visits[node] = 1
+     		for _, next := range linkList[node] {
+     			if visits[next] == 0 {
+     				if !dfs(next) {
+     					return false
+     				}
+     			} else if visits[next] == 1 {
+     				return false
+     			}
+     		}
+     		visits[node] = 2
+     		ans = append(ans, node)
+     		return true
+     	}
+     
+     	for _, prerequisite := range prerequisites {
+     		linkList[prerequisite[1]] = append(linkList[prerequisite[1]], prerequisite[0])
+     	}
+     	for i := 0; i < numCourses; i++ {
+     		if visits[i] == 0 && !dfs(i) {
+     			return nil
+     		}
+     	}
+     
+     	if len(ans) != numCourses {
+     		return nil
+     	}
+     	for i := 0; i < numCourses/2; i++ {
+     		ans[i], ans[numCourses-1-i] = ans[numCourses-1-i], ans[i]
+     	}
+     	return ans
+     }
+     ```
+
+##### 成环问题
+
+##### 拓扑排序例题
+
+| ID   | LeetCode 题号                                                | 描述                                                 |
+| ---- | ------------------------------------------------------------ | ---------------------------------------------------- |
+| 1    | [210. Course Schedule II](https://leetcode.cn/problems/course-schedule-ii/) | 经典图论中先后顺序问题                               |
+| 2    | [269. Alien Dictionary](https://leetcode.cn/problems/alien-dictionary/) | 给定一个按字典升序排列的字符串数组，判定字符先后顺序 |
+
 判断有向图是否有cycle (207. Course Schedule)
 判断无向图是否有cycle (1192. Critical Connections in a Network)
 图二分染色 (785. Is Graph Bipartite?)
@@ -133,7 +233,7 @@ Dijkstra （用heap 写，准备模板） （1631. Path With Minimum Effort， 1
 用于快速合并图的不同components （305. Number of Islands II）
 用于快速判断两个nodes是不是连通
 回溯法 Backtracking 本质就是想象成图，然后递归的DFS（有时可以剪枝)  526. Beautiful Arrangement, 22. Generate Parentheses
-. check 1point3acres for more.
+
 binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做BFS。类似的用binary search 查找答案的思路见【7. 搜索和查询 中的binary search部分】
 1102 Path With Maximum Minimum Value
 778  Swim in Rising Water
@@ -293,7 +393,7 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
 
 ## 图
 
-- 见[图的遍历](#图的遍历)
+- 见[图的遍历](#图的遍历例题)
 
 | ID   | LeetCode 题号                                                | 思路                                                         |
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
@@ -306,3 +406,10 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
 | 7    | [127. Word Ladder](https://leetcode.cn/problems/word-ladder/) | `BFS` ，邻接表，用双向队列控制扇出                           |
 | 8    | [695. Max Area of Island](https://leetcode.cn/problems/max-area-of-island/) | `DFS` 多一个返回值，很直白                                   |
 | 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | `DFS`，我用了双队列优化，通过删邻接表来控制队列规模          |
+
+- 见[拓扑排序](#拓扑排序)
+
+| ID   | LeetCode 题号                                                | 思路                                                         |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 1    | [210. Course Schedule II](https://leetcode.cn/problems/course-schedule-ii/) | `BFS` `DFS` 都可以，注意谁先谁后就行，可以通过去入度时候进队列来判断是否为入度零 |
+| 2    | [269. Alien Dictionary](https://leetcode.cn/problems/alien-dictionary/) | 按照规则构建对应先后顺序表就行，小细节                       |

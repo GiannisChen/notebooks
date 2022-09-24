@@ -1536,7 +1536,253 @@ http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 - https://jmoiron.github.io/sqlx/
 - https://github.com/ClickHouse/clickhouse-go
 
+
+
+### `JWT`
+
+#### 介绍
+
+- `JSON Web Token` 是一个开放标准 ( [RFC 7519](https://tools.ietf.org/html/rfc7519) )，它定义了一种紧凑且自包含的方式，用于在各方之间以 `JSON` 对象的形式安全传输信息。此信息可以验证和信任，因为它是数字签名的。`JWT` 可以使用密钥（使用`HMAC` 算法）或使用 `RSA` 或 `ECDSA` 的公钥/私钥对进行签名。
+
+- 虽然 `JWT` 可以加密以在各方之间提供保密性，但我们将专注于*签名*令牌。签名的令牌可以验证其中包含的声明的*完整性*，而加密的令牌会向第三方*隐藏*这些声明。当使用公钥/私钥对对令牌进行签名时，签名还能证明只有持有私钥的一方才是签署它的一方。
+
+- 以下是 `JWT` 的**使用场景**：
+
+  - **授权**：这是使用 `JWT` 最常见的场景。用户登录后，每个后续请求都将包含 `JWT`，从而允许用户访问该令牌允许的路由、服务和资源。单点登录是当今广泛使用 `JWT` 的一项功能，因为它的开销很小并且能够在不同的域中轻松使用。
+  - **信息交换**：`JWT` 是在各方之间安全传输信息的好方法。因为可以对 `JWT` 进行签名（例如，使用公钥/私钥对），所以您可以确定发件人就是他们所说的那个人。此外，由于使用标头和有效负载计算签名，您还可以验证内容没有被篡改。
+
+- `JWT` **结构**由以点 ( `.`) 分隔的三部分组成，它们是：（`xxxxx.yyyyy.zzzzz`）
+
+  - **标头**（`Header`）
+
+    标头*通常*由两部分组成：令牌的类型，即 `JWT`，以及正在使用的签名算法，例如 `HMAC` `SHA256` 或 `RSA` ，比如下面的 `JSON` 将被 `Base64Url` 方法加密成为 `JWT` 的第一部分。
+
+    ```json
+    {
+      "alg": "HS256",
+      "typ": "JWT"
+    }
+    ```
+
+  - **有效载荷**（`Payload`）
+
+    令牌的第二部分是有效负载，其中包含声明（`claims`）。声明是关于实体（通常是用户）和附加数据的声明。声明分为三种类型：**注册声明**、**公开声明**和**私人声明**：
+
+    - [**注册声明**](https://tools.ietf.org/html/rfc7519#section-4.1)：这些是一组预定义的声明，它们不是强制性的，但建议使用，以提供一组有用的、可互操作的声明。其中一些是： **iss**（`issuser`）、 **exp**（`expiration time`）、 **sub**（`subject`）、 **aud**（`audience`）[等](https://tools.ietf.org/html/rfc7519#section-4.1)。
+
+      > 请注意，声明名称只有三个字符，只要 JWT 是紧凑的。
+
+    - [**公共声明**](https://tools.ietf.org/html/rfc7519#section-4.2)：这些可以由使用 `JWT` 的人随意定义。但是为了避免冲突，它们应该在[IANA JSON Web Token Registry](https://www.iana.org/assignments/jwt/jwt.xhtml)中定义，或者定义为包含抗冲突命名空间的 `URI`。
+
+    - [**私人声明**](https://tools.ietf.org/html/rfc7519#section-4.3)：这些是为在同意使用它们的各方之间共享信息而创建的自定义声明，既不是**注册声明**也不是**公共声明**。
+
+    ```json
+    {
+      "sub": "1234567890",
+      "name": "John Doe",
+      "admin": true
+    }
+    ```
+
+    > 请注意，对于已签名的令牌，此信息虽然受到保护以防篡改，但任何人都可以读取。除非已加密，否则**请勿**将机密信息放入 `JWT` 的有效负载或标头元素中。
+
+  - **签名**（`Signature`）
+
+    要创建签名部分，您必须获取编码的标头、编码的有效负载、秘密、标头中指定的算法，并对其进行签名。例如，如果您想使用 `HMAC SHA256` 算法，签名将通过以下方式创建：
+
+    ```c
+    HMACSHA256(base64UrlEncode(header) + "." + base64UrlEncode(payload), secret)
+    ```
+
+    签名用于验证消息在此过程中没有被更改，并且在使用私钥签名的令牌的情况下，它还可以验证 `JWT` 的发送者就是它所说的那个人。
+
+  - **总结**
+
+    输出是三个用点分隔的 `Base64-URL` 字符串，可以在 `HTML` 和 `HTTP` 环境中轻松传递，同时与基于 `XML` 的标准（如 `SAML`）相比更紧凑。
+
+    ![JWT.io 调试器](../LeetCode/images/legacy-app-auth.png)
+
+#### `JWT` 使用流程
+
+- 在身份验证中，当用户使用其凭据成功登录时，将返回一个 `JSON Web Token`。由于令牌是凭据，因此必须非常小心以防止出现安全问题，通常，您不应将令牌保留超过所需的时间。由于缺乏安全性，也**不应该**在浏览器存储中存储敏感的会话数据。
+
+- 每当用户想要访问受保护的路由或资源时，用户代理应该发送 `JWT`，通常在**Authorization**标头中使用**Bearer**模式。标头的内容应如下所示：
+
+  ```json
+  Authorization: Bearer <token>
+  ```
+
+![JSON Web 令牌如何工作](../LeetCode/images/client-credentials-grant.png)
+
+1. 应用程序或客户端向授权服务器请求授权。这是通过不同的授权流程之一执行的。例如，一个典型的符合[OpenID Connect](http://openid.net/connect/)的Web应用程序将使用[授权代码流](http://openid.net/specs/openid-connect-core-1_0.html#CodeFlowAuth)`/oauth/authorize`通过端点。
+2. 当授权被授予时，授权服务器向应用程序返回一个访问令牌。
+3. 应用程序使用访问令牌访问受保护的资源（如API）。
+
+#### 代码
+
+犯懒了，不想写了，看这吧：https://www.liwenzhou.com/posts/Go/json-web-token
+
+
+
+### `swagger`  接口文档
+
+#### 介绍
+
+- `swagger` 本质上是一种用于描述使用 `JSON` 表示的 `RESTful` API的接口描述语言。`swagger` 与一组开源软件工具一起使用，以设计、构建、记录和使用 `RESTful` Web服务。`swagger` 包括自动文档，代码生成和测试用例生成。
+
+- 在前后端分离的项目开发过程中，如果后端同学能够提供一份清晰明了的接口文档，那么就能极大地提高大家的沟通效率和开发效率。可是编写接口文档历来都是令人头痛的，而且后续接口文档的维护也十分耗费精力。
+
+- 最好是有一种方案能够既满足我们输出文档的需要又能随代码的变更自动更新，而 `swagger` 正是那种能帮我们解决接口文档问题的工具。
+
+- 使用 `gin-swagger` 库以使用 `swagger 2.0` 自动生成 `RESTful` API文档。
+- **参考**：
+  - **注释规范**：https://swaggo.github.io/swaggo.io/declarative_comments_format/general_api_info.html
+  - **项目地址**：https://github.com/swaggo/gin-swagger
+
+#### 代码
+
+1. 在 `main.go` 中配置（通过注释，这点就没有Java好了）：
+
+   ```go
+   // @title gin-test
+   // @version 1.0
+   // @description a test for gin
+   // @termsOfService http://swagger.io/terms/
+   
+   // @contact.name GiannisChen
+   // @contact.url http://www.swagger.io/support
+   // @contact.email support@swagger.io
+   
+   // @license.name Apache 2.0
+   // @license.url http://www.apache.org/licenses/LICENSE-2.0.html
+   
+   // @host localhost:8080
+   // @BasePath /
+   
+   // @securityDefinitions.apikey  ApiKeyAuth
+   // @in                          header
+   // @name                        Authorization
+   // @description					Description for what is this security definition being used
+   func main() {
+       ...
+   }
+   ```
+
+   - `host` 得写完整；
+   - `BasePath` 会作为公共前缀拼接上去；
+   - 开了 `JWT` 的认证，这和Java是一样的，配合上一章节使用；
+
+2. 在 `controller` 层注册具体路由：
+
+   ```go
+   // TestSwagger swagger test
+   // @Summary
+   // @Description for test
+   // @Tags swagger
+   // @Accept application/json
+   // @Produce application/json
+   // @Param object query models.User false "query param"
+   // @Security ApiKeyAuth
+   // @Success 200 {object} _Response
+   // @Router /admin/swagger [post]
+   func TestSwagger(c *gin.Context) {
+   	var user models.User
+   	if err := c.ShouldBind(&user); err != nil {
+   		c.JSON(400, _Response{Code: 400, Message: err.Error()})
+   		return
+   	}
+   	if marshal, err := json.Marshal(user); err != nil {
+   		c.JSON(400, _Response{Code: 400, Message: err.Error()})
+   	} else {
+   		c.JSON(200, _Response{Code: 200, Message: string(marshal)})
+   	}
+   }
+   
+   // AuthHandler generate auth
+   // @Summary
+   // @Description for test
+   // @Tags auth
+   // @Accept application/json
+   // @Produce application/json
+   // @Security ApiKeyAuth
+   // @Success 200 {object} _Response
+   // @Router /auth [get]
+   func AuthHandler(c *gin.Context) {
+   	str, _ := auth.GenRegisteredClaims()
+   	c.JSON(http.StatusOK, _Response{Code: 200, Message: "Bearer:" + str})
+   }
+   
+   // _Response 帖子列表接口响应数据
+   type _Response struct {
+   	Code    int    `json:"code"`    // 业务响应状态码
+   	Message string `json:"message"` // 提示信息
+   }
+   ```
+
+3. 准备好了注释，需要自动生成环节了：
+
+   安装 `swag` 工具：
+
+   ```shell
+   $ go get -u github.com/swaggo/swag/cmd/swag
+   ```
+
+   在**项目根目录**下生成：
+
+   ```shell
+   $ swag init
+   ```
+
+   执行完后会有日志和新的文件夹：
+
+   > ```
+   > 2022/09/23 22:03:39 Generate swagger docs....
+   > 2022/09/23 22:03:39 Generate general API Info, search dir:./
+   > 2022/09/23 22:03:39 Generating models.User
+   > 2022/09/23 22:03:39 Generating controller._Response
+   > 2022/09/23 22:03:39 create docs.go at  docs/docs.go
+   > 2022/09/23 22:03:39 create swagger.json at  docs/swagger.json
+   > 2022/09/23 22:03:39 create swagger.yaml at  docs/swagger.yaml
+   > ```
+
+   > ```bash
+   > ./docs
+   > ├── docs.go
+   > ├── swagger.json
+   > └── swagger.yaml
+   > ```
+
+4. 导入相关包：
+
+   ```shell
+   $ go get github.com/swaggo/files
+   $ go get github.com/swaggo/gin-swagger
+   ```
+
+5. 然后需要注册 `swagger` 的访问路由：
+
+   ```go
+   import swaggerFiles "github.com/swaggo/files"
+   import gs "github.com/swaggo/gin-swagger"
+   
+   r.GET("/swagger/*any", gs.WrapHandler(swaggerFiles.Handler))
+   ```
+
+6. 最后在 `main.go` 中引入我们自己的 `docs` ：
+
+   ```go
+   import 	_ "Gin-Test/test/docs"
+   ```
+
+7. 大功告成！！！
+
+   ![image-20220923224346873](../LeetCode/images/gintest-web-swagger.png)
+
+
+
 ---
+
+
 
 ## `Gin` 源码
 
