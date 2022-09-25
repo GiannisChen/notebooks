@@ -216,16 +216,161 @@ func DFS(g graph, n, m int) {
 
 ##### 成环问题
 
-##### 拓扑排序例题
+1. **有向图**和之前先后顺序问题一样的思路，可以通过：（以 `ID-3` 为例）
+
+   1. `DFS` 和遍历状态表来判断是否成环，如果遍历过程中碰到状态时遍历中的时候，就是有环了；
+   2. `BFS` 层次遍历是否出现没遍历过但是入度为零不存在；
+
+2. **无向图**的**割点**与**桥**的问题 —— **Tarjan算法**：
+
+   **Tarjan算法**是基于 `DFS` 的算法，用于求解图的连通性问题。**Tarjan算法**可以在线性时间内求出无向图的割点与桥，进一步地可以求解**无向图的双连通分量**；同时，也可以求解**有向图的强连通分量**、**必经点与必经边**。
+
+   - **割点**：若从图中删除节点 x 以及所有与 x 关联的边之后，图将被分成两个或两个以上的不相连的子图，那么称 x 为图的**割点**：（图中 `1`、`6`）
+
+     ```go
+     package main
+     
+     import (
+        "fmt"
+        "sort"
+     )
+     
+     func main() {
+        var n, m int
+        fmt.Scanln(&n, &m)
+        linkList := make([][]int, n+1)
+        var a, b int
+        for m > 0 {
+           m--
+           fmt.Scanln(&a, &b)
+     
+           linkList[a] = append(linkList[a], b)
+           linkList[b] = append(linkList[b], a)
+        }
+     
+        dfn := make([]int, n+1)
+        low := make([]int, n+1)
+        ans := make([]int, 0)
+        clock := 0
+     
+        var tarjan func(int, int)
+        tarjan = func(cur, fa int) {
+           clock++
+           dfn[cur], low[cur] = clock, clock
+           child := 0
+           for _, next := range linkList[cur] {
+              if dfn[next] == 0 {
+                 child++
+                 tarjan(next, cur)
+                 low[cur] = min(low[cur], low[next])
+                 if fa != cur && low[next] >= dfn[cur] {
+                    ans = append(ans, cur)
+                 }
+              } else if next != fa {
+                 low[cur] = min(low[cur], dfn[next])
+              }
+           }
+           if fa == cur && child >= 2 {
+              ans = append(ans, cur)
+           }
+        }
+     
+        for i := 1; i <= n; i++ {
+           if dfn[i] == 0 {
+              tarjan(i, i)
+              clock = 0
+           }
+        }
+     
+        fmt.Print(len(ans))
+        if len(ans) == 0 {
+           return
+        }
+        sort.Ints(ans)
+        fmt.Println()
+        for i, an := range ans {
+           if i == 0 {
+              fmt.Printf("%d", an)
+           } else {
+              fmt.Printf(" %d", an)
+           }
+        }
+        return
+     }
+     
+     func min(a, b int) int {
+        if a < b {
+           return a
+        }
+        return b
+     }
+     ```
+   
+     ![cut-point-graph](images/cut-point-graph.svg)
+   
+   - **桥**：若从图中删除边 e 之后，图将分裂成两个不相连的子图，那么称 e 为图的**桥**或**割边**：（红边）
+   
+     ![bridge-edge-graph](../../../Drawios/bridge-edge-graph.svg)
+   
+     ```go
+     func criticalConnections(n int, connections [][]int) (ans [][]int) {
+        linkList := make([][]int, n)
+        dfn := make([]int, n)
+        low := make([]int, n)
+        ts := 0
+     
+        for _, c := range connections {
+           linkList[c[0]] = append(linkList[c[0]], c[1])
+           linkList[c[1]] = append(linkList[c[1]], c[0])
+        }
+     
+        var tarjan func(int, int)
+        tarjan = func(i int, fa int) {
+           ts++
+           dfn[i], low[i] = ts, ts
+           for _, next := range linkList[i] {
+              if next == fa {
+                 continue
+              }
+              if dfn[next] == 0 {
+                 tarjan(next, i)
+                 low[i] = min(low[next], low[i])
+                 if dfn[i] < low[next] {
+                    ans = append(ans, []int{i, next})
+                 }
+              } else {
+                 low[i] = min(low[next], low[i])
+              }
+           }
+        }
+        for i := 0; i < n; i++ {
+           if dfn[i] == 0 {
+              tarjan(i, -1)
+           }
+        }
+        return
+     }
+     ```
+
+
+
+##### 图染色问题
+
+图二分染色 (785. Is Graph Bipartite?)
+
+
+
+##### 例题
 
 | ID   | LeetCode 题号                                                | 描述                                                 |
 | ---- | ------------------------------------------------------------ | ---------------------------------------------------- |
 | 1    | [210. Course Schedule II](https://leetcode.cn/problems/course-schedule-ii/) | 经典图论中先后顺序问题                               |
 | 2    | [269. Alien Dictionary](https://leetcode.cn/problems/alien-dictionary/) | 给定一个按字典升序排列的字符串数组，判定字符先后顺序 |
+| 3    | [207. Course Schedule](https://leetcode.cn/problems/course-schedule/) | 图论中是否成环的问题                                 |
+| 4    | [1192. Critical Connections in a Network](https://leetcode.cn/problems/critical-connections-in-a-network/) | 图中是否有桥                                         |
 
-判断有向图是否有cycle (207. Course Schedule)
-判断无向图是否有cycle (1192. Critical Connections in a Network)
-图二分染色 (785. Is Graph Bipartite?)
+
+
 最短（最长）路径
 经典BFS题 994. Rotting Oranges, 909. Snakes and Ladders, 1091. Shortest Path in Binary Matrix, 1293. Shortest Path in a Grid with Obstacles Elimination
 Dijkstra （用heap 写，准备模板） （1631. Path With Minimum Effort， 1066. Campus Bikes II）.
@@ -413,3 +558,5 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
 | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 1    | [210. Course Schedule II](https://leetcode.cn/problems/course-schedule-ii/) | `BFS` `DFS` 都可以，注意谁先谁后就行，可以通过去入度时候进队列来判断是否为入度零 |
 | 2    | [269. Alien Dictionary](https://leetcode.cn/problems/alien-dictionary/) | 按照规则构建对应先后顺序表就行，小细节                       |
+| 3    | [207. Course Schedule](https://leetcode.cn/problems/course-schedule/) | `DFS` + 状态数组                                             |
+| 4    | [1192. Critical Connections in a Network](https://leetcode.cn/problems/critical-connections-in-a-network/) | 判断是否有桥，板子 `tarjan` 算法                             |
