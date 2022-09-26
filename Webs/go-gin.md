@@ -1600,7 +1600,7 @@ http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
     输出是三个用点分隔的 `Base64-URL` 字符串，可以在 `HTML` 和 `HTTP` 环境中轻松传递，同时与基于 `XML` 的标准（如 `SAML`）相比更紧凑。
 
-    ![JWT.io 调试器](../LeetCode/images/legacy-app-auth.png)
+    ![JWT.io 调试器](images/legacy-app-auth.png)
 
 #### `JWT` 使用流程
 
@@ -1612,7 +1612,7 @@ http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
   Authorization: Bearer <token>
   ```
 
-![JSON Web 令牌如何工作](../LeetCode/images/client-credentials-grant.png)
+![JSON Web 令牌如何工作](images/client-credentials-grant.png)
 
 1. 应用程序或客户端向授权服务器请求授权。这是通过不同的授权流程之一执行的。例如，一个典型的符合[OpenID Connect](http://openid.net/connect/)的Web应用程序将使用[授权代码流](http://openid.net/specs/openid-connect-core-1_0.html#CodeFlowAuth)`/oauth/authorize`通过端点。
 2. 当授权被授予时，授权服务器向应用程序返回一个访问令牌。
@@ -1776,9 +1776,1003 @@ http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 
 7. 大功告成！！！
 
-   ![image-20220923224346873](../LeetCode/images/gintest-web-swagger.png)
+   ![image-20220923224346873](images/gintest-web-swagger.png)
 
 
+
+### 限流策略（`rate limit`）
+
+- 限流又称为流量控制（流控），通常是指限制到达系统的并发请求数。限流虽然会影响部分用户的使用体验，但是却能在一定程度上报障系统的稳定性，不至于崩溃（大家都没了用户体验）。
+
+  而互联网上类似需要限流的业务场景也有很多：
+
+  - 电商系统的秒杀、微博上突发热点新闻、双十一购物节、12306抢票等等，这些场景下的用户请求量通常会激增，远远超过平时正常的请求量，此时如果不加任何限制很容易就会将后端服务打垮，影响服务的稳定性。
+  - 一些厂商公开的API服务通常也会限制用户的请求次数，比如百度地图开放平台等会根据用户的付费情况来限制用户的请求数等。
+
+- 常用的限流策略有两种：
+
+  - [**漏桶**](#漏桶)（`leaky-bucket algorithm`）
+  - [**令牌桶**](#令牌桶)（`token bucket algorithm`）
+
+#### 漏桶
+
+- 漏桶法的关键点在于漏桶始终按照固定的速率运行，但是它并不能很好的处理有大量突发请求的场景，毕竟在某些场景下我们可能需要提高系统的处理效率，而不是一味的按照固定速率处理请求。
+
+- 参考：https://github.com/uber-go/ratelimit
+
+  ```go
+  package main
+  
+  import (
+  	"fmt"
+  	"go.uber.org/ratelimit"
+  	"time"
+  )
+  
+  func main() {
+  	limiter := ratelimit.New(10)
+  	prev := time.Now()
+  	for i := 0; i < 10; i++ {
+  		now := limiter.Take()
+  		fmt.Println(i, now.Sub(prev))
+  		prev = now
+  	}
+  }
+  
+  // 0 0s
+  // 1 100ms
+  // 2 100ms
+  // 3 100ms
+  // 4 100ms
+  // 5 100ms
+  // 6 100ms
+  // 7 100ms
+  // 8 100ms
+  // 9 100ms
+  ```
+
+- 限制器是一个接口类型，有三种不同的实现方式（`atomic limiter`，`mutex limiter`，`unlimited`），不过官方只使用了其中一种（`atomic limiter`）：
+
+  ```go
+  type state struct {
+  	last     time.Time			// 上一次的时刻
+  	sleepFor time.Duration		// 需要等待的时间
+  }
+  
+  type atomicLimiter struct {
+  	state unsafe.Pointer
+  	//lint:ignore U1000 Padding is unused but it is crucial to maintain performance
+  	// of this rate limiter in case of collocation with other frequently accessed memory.
+  	padding [56]byte // cache line size - state pointer size = 64 - 8; created to avoid false sharing.
+  
+  	perRequest time.Duration	// 每次的时间间隔
+  	maxSlack   time.Duration	// 最大的富余量
+  	clock      Clock			// 时钟
+  }
+  ```
+
+- `newAtomicBased`初始化一个限流器，用 `atomic.StorePointer()` 来确保同步运行和并发：
+
+  ```go
+  func newAtomicBased(rate int, opts ...Option) *atomicLimiter {
+  	// TODO consider moving config building to the implementation
+  	// independent code.
+  	config := buildConfig(opts)
+  	perRequest := config.per / time.Duration(rate)
+  	l := &atomicLimiter{
+  		perRequest: perRequest,
+  		maxSlack:   -1 * time.Duration(config.slack) * perRequest,
+  		clock:      config.clock,
+  	}
+  
+  	initialState := state{
+  		last:     time.Time{},
+  		sleepFor: 0,
+  	}
+  	atomic.StorePointer(&l.state, unsafe.Pointer(&initialState))
+  	return l
+  }
+  ```
+
+- `Take()` 阻塞一定时间并返回：
+
+  ```go
+  // Take blocks to ensure that the time spent between multiple
+  // Take calls is on average time.Second/rate.
+  func (t *atomicLimiter) Take() time.Time {
+  	var (
+  		newState state
+  		taken    bool
+  		interval time.Duration
+  	)
+  	for !taken {
+  		now := t.clock.Now()
+  
+  		previousStatePointer := atomic.LoadPointer(&t.state)
+  		oldState := (*state)(previousStatePointer)
+  
+  		newState = state{
+  			last:     now,
+  			sleepFor: oldState.sleepFor,
+  		}
+  
+  		// If this is our first request, then we allow it.
+  		if oldState.last.IsZero() {
+  			taken = atomic.CompareAndSwapPointer(&t.state, previousStatePointer, unsafe.Pointer(&newState))
+  			continue
+  		}
+  
+  		// sleepFor calculates how much time we should sleep based on
+  		// the perRequest budget and how long the last request took.
+  		// Since the request may take longer than the budget, this number
+  		// can get negative, and is summed across requests.
+  		newState.sleepFor += t.perRequest - now.Sub(oldState.last)
+  		// We shouldn't allow sleepFor to get too negative, since it would mean that
+  		// a service that slowed down a lot for a short period of time would get
+  		// a much higher RPS following that.
+  		if newState.sleepFor < t.maxSlack {
+  			newState.sleepFor = t.maxSlack
+  		}
+  		if newState.sleepFor > 0 {
+  			newState.last = newState.last.Add(newState.sleepFor)
+  			interval, newState.sleepFor = newState.sleepFor, 0
+  		}
+  		taken = atomic.CompareAndSwapPointer(&t.state, previousStatePointer, unsafe.Pointer(&newState))
+  	}
+  	t.clock.Sleep(interval)
+  	return newState.last
+  }
+  ```
+
+- 利用 `atomic.CompareAndSwapPointer()` 来达到并行访问的目的，复用了 `atomicLimiter` 的结构但是每次更新 `state` 这个结构体，最后通过 `Clock.Sleep` 来限流。
+
+- `unlimited` 干脆啥都没做，而 `mutexLimiter` 详见：https://www.liwenzhou.com/posts/Go/ratelimit/
+
+#### 令牌桶
+
+<img src="images/lingpaitong.jpg" alt="令牌桶原理" style="zoom: 33%;" />
+
+- 令牌桶其实和漏桶的原理类似，令牌桶按固定的速率往桶里放入令牌，并且只要能从桶里取出令牌就能通过，令牌桶支持突发流量的快速处理。对于从桶里取不到令牌的场景，我们可以选择等待也可以直接拒绝并返回。
+
+- 参考：https://github.com/juju/ratelimit
+
+- 创建令牌桶：
+
+  ```go
+  // 创建指定填充速率和容量大小的令牌桶
+  func NewBucket(fillInterval time.Duration, capacity int64) *Bucket
+  // 创建指定填充速率、容量大小和每次填充的令牌数的令牌桶
+  func NewBucketWithQuantum(fillInterval time.Duration, capacity, quantum int64) *Bucket
+  // 创建填充速度为指定速率和容量大小的令牌桶
+  // NewBucketWithRate(0.1, 200) 表示每秒填充20个令牌
+  func NewBucketWithRate(rate float64, capacity int64) *Bucket
+  ```
+
+- 取出令牌的方法：
+
+  ```go
+  // 取token（非阻塞）
+  func (tb *Bucket) Take(count int64) time.Duration
+  func (tb *Bucket) TakeAvailable(count int64) int64
+  
+  // 最多等maxWait时间取token
+  func (tb *Bucket) TakeMaxDuration(count int64, maxWait time.Duration) (time.Duration, bool)
+  
+  // 取token（阻塞）
+  func (tb *Bucket) Wait(count int64)
+  func (tb *Bucket) WaitMaxDuration(count int64, maxWait time.Duration) bool
+  ```
+
+- 虽说是令牌桶，但是我们没有必要真的去生成令牌放到桶里，我们只需要每次来取令牌的时候计算一下，当前是否有足够的令牌就可以了，具体的计算方式可以总结为下面的公式：
+
+  > ```bash
+  > 当前令牌数 = 上一次剩余的令牌数 + (本次取令牌的时刻-上一次取令牌的时刻)/放置令牌的时间间隔 * 每次放置的令牌数
+  > ```
+
+  ```go
+  // currentTick returns the current time tick, measured
+  // from tb.startTime.
+  func (tb *Bucket) currentTick(now time.Time) int64 {
+  	return int64(now.Sub(tb.startTime) / tb.fillInterval)
+  }
+  ```
+
+  ```go
+  // adjustavailableTokens adjusts the current number of tokens
+  // available in the bucket at the given time, which must
+  // be in the future (positive) with respect to tb.latestTick.
+  func (tb *Bucket) adjustavailableTokens(tick int64) {
+  	lastTick := tb.latestTick
+  	tb.latestTick = tick
+  	if tb.availableTokens >= tb.capacity {
+  		return
+  	}
+  	tb.availableTokens += (tick - lastTick) * tb.quantum
+  	if tb.availableTokens > tb.capacity {
+  		tb.availableTokens = tb.capacity
+  	}
+  	return
+  }
+  ```
+
+- 获得令牌：
+
+  ```go
+  // takeAvailable is the internal version of TakeAvailable - it takes the
+  // current time as an argument to enable easy testing.
+  func (tb *Bucket) takeAvailable(now time.Time, count int64) int64 {
+  	if count <= 0 {
+  		return 0
+  	}
+  	tb.adjustavailableTokens(tb.currentTick(now))
+  	if tb.availableTokens <= 0 {
+  		return 0
+  	}
+  	if count > tb.availableTokens {
+  		count = tb.availableTokens
+  	}
+  	tb.availableTokens -= count
+  	return count
+  }
+  ```
+
+- 在 `Gin` 使用限流中间件：
+
+  ```go
+  func RateLimitMiddleware(fillInterval time.Duration, cap int64) func(c *gin.Context) {
+  	bucket := ratelimit.NewBucket(fillInterval, cap)
+  	return func(c *gin.Context) {
+  		// 如果取不到令牌就中断本次请求返回 rate limit...
+  		if bucket.TakeAvailable(1) < 1 {
+  			c.String(http.StatusOK, "rate limit...")
+  			c.Abort()
+  			return
+  		}
+  		c.Next()
+  	}
+  }
+  ```
+
+
+
+### `Viper`
+
+- 参考并翻译自：https://github.com/spf13/viper
+
+- 是适用于Go应用程序的完整**配置**解决方案。它被设计用于在应用程序中工作，并且可以处理**所有类型的配置需求和格式**。
+
+#### 安装
+
+```go
+$ go get github.com/spf13/viper
+```
+
+#### 特性
+
+- 设置默认值
+- 从 `JSON` 、 `TOML` 、 `YAML` 、 `HCL` 、 `envfile` 和 `Java properties` 格式的配置文件读取配置信息
+- 实时监控和重新读取配置文件（可选）
+- 从环境变量中读取
+- 从远程配置系统（**etcd**或**Consul**）读取并监控配置变化
+- 从命令行参数读取配置
+- 从buffer读取配置
+- 显式配置值
+
+#### 功能
+
+1. 查找、加载和反序列化 `JSON` 、 `TOML` 、 `YAML` 、 `HCL` 、 `INI` 、 `envfile` 和 `Java properties` 格式的配置文件。
+2. 提供一种机制为你的不同配置选项设置默认值。
+3. 提供一种机制来通过命令行参数覆盖指定选项的值。
+4. 提供别名系统，以便在不破坏现有代码的情况下轻松重命名参数。
+5. 当用户提供了与默认值相同的命令行或配置文件时，可以很容易地分辨出它们之间的区别。
+
+#### 优先级
+
+![gin-viper-priority](images/gin-viper-priority.svg)
+
+
+
+#### 存
+
+##### 设置默认值
+
+- 一个好的配置系统应该支持**默认值**。`Key` 不需要默认值，但如果没有通过配置文件、环境变量、远程配置或命令行标志（`flag`）设置 `Key` 对应的 `Value`，则默认值非常有用。
+
+  ```go
+  viper.SetDefault("ContentDir", "content")
+  viper.SetDefault("LayoutDir", "layouts")
+  viper.SetDefault("Taxonomies", map[string]string{"tag": "tags", "category": "categories"})
+  ```
+
+##### 读取配置文件
+
+- `Viper` 需要最少知道在哪里查找配置文件的配置。`Viper` 支持`JSON`、`TOML`、`YAML`、`HCL`、`envfile`和`Java properties`格式的配置文件。`Viper` 可以**搜索多个路径**，但目前单个 `Viper` 实例**只支持单个配置文件**。`Viper` 不默认任何配置搜索路径，将默认决策留给应用程序。下面是一个如何使用 `Viper` 搜索和读取配置文件的示例。不需要任何特定的路径，但是至少应该提供一个配置文件预期出现的路径：
+
+  ```go
+  viper.SetConfigFile("./config.yaml") // 指定配置文件路径
+  viper.SetConfigName("config") // 配置文件名称(无扩展名)
+  viper.SetConfigType("yaml") // 如果配置文件的名称中没有扩展名，则需要配置此项
+  viper.AddConfigPath("/etc/appname/")   // 查找配置文件所在的路径
+  viper.AddConfigPath("$HOME/.appname")  // 多次调用以添加多个搜索路径
+  viper.AddConfigPath(".")               // 还可以在工作目录中查找配置
+  err := viper.ReadInConfig() // 查找并读取配置文件
+  if err != nil { // 处理读取配置文件的错误
+  	panic(fmt.Errorf("Fatal error config file: %s \n", err))
+  }
+  ```
+
+  在加载配置文件出错时，你可以像下面这样处理**找不到配置文件**的特定情况：
+
+  ```go
+  if err := viper.ReadInConfig(); err != nil {
+      if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+          // 配置文件未找到错误；如果需要可以忽略
+      } else {
+          // 配置文件被找到，但产生了另外的错误
+      }
+  }
+  
+  // 配置文件找到并成功解析
+  ```
+
+  > 你也可以有不带扩展名的文件，并以编程方式指定其格式。对于位于用户 `$HOME` 目录中的配置文件没有任何扩展名，如 `.bashrc` 。
+
+- 那么，如果我**不指定后缀名**呢？当你使用如下方式读取配置时，viper会从 `./conf` 目录下查找任何以 `config` 为文件名的配置文件，如果同时存在 `./conf/config.json` 和 `./conf/config.yaml` 两个配置文件的话， `viper` 会读取 `config.json` ，而不是 `config.yaml` ：
+
+  ```go
+  viper.SetConfigName("config")
+  viper.AddConfigPath("./conf")
+  ```
+
+- 原理很直白，有一个**全局变量**，按顺序调用就行了：
+
+  ```go
+  var SupportedExts = []string{"json", "toml", "yaml", "yml", "properties", "props", "prop", "hcl", "tfvars", "dotenv", "env", "ini"}
+  ```
+
+  ```go
+  viper.SetConfigType("yaml") 
+  ```
+
+  ```go
+  func SetConfigType(in string) { v.SetConfigType(in) }
+  ```
+
+  ```go
+  func (v *Viper) SetConfigType(in string) {
+  	if in != "" {
+  		v.configType = in
+  	}
+  }
+  ```
+
+- **傻逼**的地方来了，顺着源码一路往下找：
+
+  ```go
+  // ReadInConfig will discover and load the configuration file from disk
+  // and key/value stores, searching in one of the defined paths.
+  func ReadInConfig() error { return v.ReadInConfig() }
+  ```
+
+  ```go
+  func (v *Viper) ReadInConfig() error {
+  	...
+  	filename, err := v.getConfigFile()
+  	...
+  }
+  ```
+
+  ```go
+  func (v *Viper) searchInPath(in string) (filename string) {
+  	...
+  	for _, ext := range SupportedExts {
+  		...
+  		if b, _ := exists(v.fs, filepath.Join(in, v.configName+"."+ext)); b {
+  			...
+  			return filepath.Join(in, v.configName+"."+ext)
+  		}
+  	}
+  
+  	if v.configType != "" {
+  		if b, _ := exists(v.fs, filepath.Join(in, v.configName)); b {
+  			return filepath.Join(in, v.configName)
+  		}
+  	}
+  
+  	return ""
+  }
+  ```
+
+- 也就是说，如果我也是个**傻逼**，把读取的代码写成这样👇，然后把文件配置成这样：
+
+  ```go
+  viper.SetConfigName("config")        // 配置文件名称(无扩展名)
+  viper.SetConfigType("yaml")          // 如果配置文件的名称中没有扩展名，则需要配置此项
+  viper.AddConfigPath("./test/config") // 查找配置文件所在的路径
+  ```
+
+  <img src="images/gin-viper-ops.png" alt="image-20220926154856107" style="zoom: 67%;" />
+
+- 我们读取的**结果是**：😓
+
+  ```bash
+  content_json layouts_json map[category:categories_json tag:tags_json]
+  ```
+
+- 预期结果呢：
+
+  ```bash
+  content_yaml layouts_yaml map[category:categories_yaml tag:tags_yaml]
+  ```
+
+  ![一想到我是个傻逼,许多问题就迎刃而解了](images/viper-fuck-me.jpg)
+
+> 让我们收拾一下心情，继续吧🙂
+
+
+
+##### 写入配置文件
+
+- 从配置文件中读取配置文件是有用的，但是有时你想要**存储**在**运行时**所做的所有修改。为此，可以使用下面一组命令，每个命令都有自己的用途：
+
+  > **程序**影响**配置文件**
+
+  - `WriteConfig()` - 将当前的 `viper` 配置写入预定义的路径并**覆盖**（如果存在的话）。如果没有预定义的路径，则报错。
+  - `SafeWriteConfig()` - 将当前的 `viper` 配置写入预定义的路径。如果没有预定义的路径，则报错。如果存在，将**不会覆盖**当前的配置文件。
+  - `WriteConfigAs()` - 将当前的 `viper` 配置写入给定的文件路径。将**覆盖**给定的文件（如果它存在的话）。
+  - `SafeWriteConfigAs()` - 将当前的 `viper` 配置写入给定的文件路径。**不会覆盖**给定的文件（如果它存在的话）。
+
+  ```go
+  viper.WriteConfig() // 将当前配置写入“viper.AddConfigPath()”和“viper.SetConfigName”设置的预定义路径
+  viper.SafeWriteConfig()
+  viper.WriteConfigAs("/path/to/my/.config")
+  viper.SafeWriteConfigAs("/path/to/my/.config") // 因为该配置文件写入过，所以会报错
+  viper.SafeWriteConfigAs("/path/to/my/.other_config")
+  ```
+
+##### 监控并重新读取配置文件
+
+- `viper` 支持在**运行时实时**读取配置文件的功能，需要重新启动服务器以使配置生效的日子已经一去不复返了， `viper` 驱动的应用程序可以在运行时读取配置文件的更新，而不会错过任何消息。只需告诉 `viper` 实例 `watchConfig()` 。可选地，你可以为 `viper` 提供一个回调函数，以便在每次发生更改时运行。
+
+  > **配置文件**影响**程序**
+
+  ```go
+  viper.WatchConfig()
+  viper.OnConfigChange(func(e fsnotify.Event) {
+    // 配置文件发生变更之后会调用的回调函数
+  	fmt.Println("Config file changed:", e.Name)
+  })
+  ```
+
+- 底层原理是经典的 `fsnotify` : https://github.com/fsnotify/fsnotify
+
+##### 从io.Reader读取配置
+
+- `viper` 预先定义了许多配置源，如文件、环境变量、标志和远程K/V存储，但你不受其约束。你还可以实现自己所需的配置源并将其提供给 `viper`：
+
+  ```go
+  viper.SetConfigType("yaml") // 或者 viper.SetConfigType("YAML")
+  
+  // 任何需要将此配置添加到程序中的方法。
+  var yamlExample = []byte(`
+  Hacker: true
+  name: steve
+  hobbies:
+  - skateboarding
+  - snowboarding
+  - go
+  clothing:
+    jacket: leather
+    trousers: denim
+  age: 35
+  eyes : brown
+  beard: true
+  `)
+  
+  viper.ReadConfig(bytes.NewBuffer(yamlExample))
+  
+  viper.Get("name") // 这里会得到 "steve"
+  ```
+
+##### 覆盖设置
+
+- 这些可能来自命令行标志，也可能来自你自己的应用程序逻辑：
+
+  ```go
+  viper.Set("Verbose", true)
+  viper.Set("LogFile", LogFile)
+  ```
+
+##### 注册和使用别名
+
+- 别名允许多个键引用单个值：
+
+  ```go
+  viper.RegisterAlias("loud", "Verbose")  // 注册别名（此处loud和Verbose建立了别名）
+  
+  viper.Set("verbose", true) // 结果与下一行相同
+  viper.Set("loud", true)   // 结果与前一行相同
+  
+  viper.GetBool("loud") // true
+  viper.GetBool("verbose") // true
+  ```
+
+##### 使用环境变量
+
+- `viper` 完全支持环境变量。这使 `Twelve-Factor App` 开箱即用。有五种方法可以帮助与ENV协作:
+
+  - `AutomaticEnv()`
+
+  - `BindEnv(string...) : error`
+
+  - `SetEnvPrefix(string)`
+
+  - `SetEnvKeyReplacer(string...) *strings.Replacer`
+
+  - `AllowEmptyEnv(bool)`
+
+> *使用 `ENV` 变量时，务必要意识到 `viper` 将 `ENV` 变量视为区分大小写。*
+
+- `viper` 提供了一种机制来确保 `ENV` 变量是惟一的。通过使用 `SetEnvPrefix` ，你可以告诉 `viper` 在读取环境变量时使用前缀。`BindEnv `和 `AutomaticEnv `都将使用这个前缀。
+
+  `BindEnv` 使用一个或两个参数。第一个参数是键名称，第二个是环境变量的名称。环境变量的名称区分大小写。如果没有提供 `ENV` 变量名，那么 `viper` 将自动假设 `ENV` 变量与以下格式匹配：前缀 `+ “_” +` 键名全部大写。当你显式提供 `ENV` 变量名（第二个参数）时，它 **不会** 自动添加前缀。例如，如果第二个参数是 `id` ，`viper` 将查找环境变量 `ID` 。
+
+  在使用 `ENV` 变量时，需要注意的一件重要事情是，每次访问该值时都将读取它。`viper` 在调用 `BindEnv` 时不固定该值。
+
+  `AutomaticEnv` 是一个强大的助手，尤其是与 `SetEnvPrefix` 结合使用时。调用时，`viper` 会在发出 `viper.Get` 请求时随时检查环境变量。它将应用以下规则。它将检查环境变量的名称是否与键匹配（如果设置了 `EnvPrefix` ）。
+
+  `SetEnvKeyReplacer` 允许你使用 `strings.Replacer` 对象在一定程度上重写 `Env` 键。如果你希望在 `Get()` 调用中使用 `-` 或者其他什么符号，但是环境变量里使用 `_` 分隔符，那么这个功能是非常有用的。可以在 `viper_test.go` 中找到它的使用示例。
+
+  或者，你可以使用带有 `NewWithOptions` 工厂函数的 `EnvKeyReplacer` 。与 `SetEnvKeyReplacer` 不同，它接受 `StringReplacer` 接口，允许你编写自定义字符串替换逻辑。
+
+  默认情况下，空环境变量被认为是未设置的，并将返回到下一个配置源。若要将空环境变量视为已设置，请使用 `AllowEmptyEnv` 方法。
+
+- `ENV` 示例：
+
+  ```go
+  SetEnvPrefix("spf") // 将自动转为大写
+  BindEnv("id")
+  
+  os.Setenv("SPF_ID", "13") // 通常是在应用程序之外完成的
+  
+  id := Get("id") // 13
+  ```
+
+##### 使用Flags
+
+- `viper` 具有绑定到标志的能力。具体来说，`viper` 支持[Cobra](https://github.com/spf13/cobra)库中使用的`Pflag`。与`BindEnv`类似，该值不是在调用绑定方法时设置的，而是在访问该方法时设置的。这意味着你可以根据需要尽早进行绑定，即使在`init()`函数中也是如此。
+
+- 对于单个标志，`BindPFlag()`方法提供此功能：
+
+  ```go
+  serverCmd.Flags().Int("port", 1138, "Port to run Application server on")
+  viper.BindPFlag("port", serverCmd.Flags().Lookup("port"))
+  ```
+
+- 你还可以绑定一组现有的 `pflags` （`pflag.FlagSet`），举个例子：
+
+  ```go
+  pflag.Int("flagname", 1234, "help message for flagname")
+  
+  pflag.Parse()
+  viper.BindPFlags(pflag.CommandLine)
+  
+  i := viper.GetInt("flagname") // 从viper而不是从pflag检索值
+  ```
+
+- 在 `viper` 中使用 `pflag` 并不阻碍其他包中使用标准库中的 `flag` 包。`pflag` 包可以通过导入这些 `flags` 来处理 `flag` 包定义的 `flags` 。这是通过调用 `pflag` 包提供的便利函数 `AddGoFlagSet()` 来实现的：
+
+  ```go
+  package main
+  
+  import (
+  	"flag"
+  	"github.com/spf13/pflag"
+  )
+  
+  func main() {
+  
+  	// 使用标准库 "flag" 包
+  	flag.Int("flagname", 1234, "help message for flagname")
+  
+  	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+  	pflag.Parse()
+  	viper.BindPFlags(pflag.CommandLine)
+  
+  	i := viper.GetInt("flagname") // 从 viper 检索值
+  
+  	...
+  }
+  ```
+
+- 如果你不使用`Pflag`，`viper` 提供了两个Go接口来绑定其他 `flag` 系统。`FlagValue`表示单个 `flag` 。这是一个关于如何实现这个接口的非常简单的例子，一旦你的 `flag` 实现了这个接口，你可以很方便地告诉 `viper` 绑定它：
+
+  ```go
+  type myFlag struct {}
+  func (f myFlag) HasChanged() bool { return false }
+  func (f myFlag) Name() string { return "my-flag-name" }
+  func (f myFlag) ValueString() string { return "my-flag-value" }
+  func (f myFlag) ValueType() string { return "string" }
+  
+  viper.BindFlagValue("my-flag-name", myFlag{})
+  ```
+
+- `FlagValueSet`代表一组 `flags` ，这是一个关于如何实现这个接口的非常简单的例子，一旦你的 `flag set` 实现了这个接口，你就可以很方便地告诉 `viper` 绑定它：
+
+  ```go
+  fSet := myFlagSet{
+  	flags: []myFlag{myFlag{}, myFlag{}},
+  }
+  viper.BindFlagValues("my-flags", fSet)
+  ```
+
+##### 远程Key/Value存储支持
+
+- 在 `viper` 中启用远程支持，需要在代码中匿名导入 `viper/remote` 这个包。
+
+  ```GO
+  import _ "github.com/spf13/viper/remote"
+  ```
+
+- `viper` 将读取从 `Key/Value` 存储（例如 `etcd` 或 `Consul` ）中的路径检索到的配置字符串（如 `JSON`、`TOML`、`YAML`、`HCL`、`envfile `和 `Java properties` 格式）。这些值的优先级高于默认值，但是会被从磁盘、`flag` 或环境变量检索到的配置值覆盖。
+
+  > 也就是说Viper加载配置值的优先级为：磁盘上的配置文件 > 命令行标志位 > 环境变量 > 远程 `Key/Value` 存储 > 默认值。
+
+- `Viper` 使用[crypt](https://github.com/bketelsen/crypt)从K/V存储中检索配置，这意味着如果你有正确的 `gpg` 密匙，你可以将配置值加密存储并自动解密。加密是可选的。
+
+- 你可以将远程配置与本地配置结合使用，也可以独立使用。
+
+- `crypt`有一个命令行助手，你可以使用它将配置放入K/V存储中。`crypt`默认使用在[http://127.0.0.1:4001](http://127.0.0.1:4001/)的 `etcd` ：
+
+  ```SHELL
+  $ go get github.com/bketelsen/crypt/bin/crypt
+  $ crypt set -plaintext /config/hugo.json /Users/hugo/settings/config.json
+  ```
+
+  确认值已经设置：
+
+  ```shell
+  $ crypt get -plaintext /config/hugo.json
+  ```
+
+  > 有关如何设置加密值或如何使用 `Consul` 的示例，请参见`crypt`文档。
+
+##### 远程Key/Value存储示例-未加密
+
+- `etcd`
+
+  ```go
+  viper.AddRemoteProvider("etcd", "http://127.0.0.1:4001","/config/hugo.json")
+  viper.SetConfigType("json") // 因为在字节流中没有文件扩展名，所以这里需要设置下类型。支持的扩展名有 "json", "toml", "yaml", "yml", "properties", "props", "prop", "env", "dotenv"
+  err := viper.ReadRemoteConfig()
+  ```
+
+- `Consul` —— 你需要 `Consul` `Key/Value` 存储中设置一个 `Key` 保存包含所需配置的 `JSON` 值。例如，创建一个 `Key` `MY_CONSUL_KEY`将下面的值存入`Consul` `key/value` 存储：
+
+  ```json
+  { "port": 8080, "hostname": "liwenzhou.com" }
+  ```
+
+  ```go
+  viper.AddRemoteProvider("consul", "localhost:8500", "MY_CONSUL_KEY")
+  viper.SetConfigType("json") // 需要显示设置成json
+  err := viper.ReadRemoteConfig()
+  
+  fmt.Println(viper.Get("port")) // 8080
+  fmt.Println(viper.Get("hostname")) // liwenzhou.com
+  ```
+
+- `Filestore`
+
+  ```go
+  viper.AddRemoteProvider("firestore", "google-cloud-project-id", "collection/document")
+  viper.SetConfigType("json") // 配置的格式: "json", "toml", "yaml", "yml"
+  err := viper.ReadRemoteConfig()
+  ```
+
+  > 当然，你也可以使用`SecureRemoteProvider`。
+
+##### 远程Key/Value存储示例-加密
+
+```go
+viper.AddSecureRemoteProvider("etcd","http://127.0.0.1:4001","/config/hugo.json","/etc/secrets/mykeyring.gpg")
+viper.SetConfigType("json") // 因为在字节流中没有文件扩展名，所以这里需要设置下类型。支持的扩展名有 "json", "toml", "yaml", "yml", "properties", "props", "prop", "env", "dotenv"
+err := viper.ReadRemoteConfig()
+```
+
+##### 监控etcd中的更改-未加密
+
+```go
+// 或者你可以创建一个新的viper实例
+var runtime_viper = viper.New()
+
+runtime_viper.AddRemoteProvider("etcd", "http://127.0.0.1:4001", "/config/hugo.yml")
+runtime_viper.SetConfigType("yaml") // 因为在字节流中没有文件扩展名，所以这里需要设置下类型。支持的扩展名有 "json", "toml", "yaml", "yml", "properties", "props", "prop", "env", "dotenv"
+
+// 第一次从远程读取配置
+err := runtime_viper.ReadRemoteConfig()
+
+// 反序列化
+runtime_viper.Unmarshal(&runtime_conf)
+
+// 开启一个单独的goroutine一直监控远端的变更
+go func(){
+	for {
+	    time.Sleep(time.Second * 5) // 每次请求后延迟一下
+
+	    // 目前只测试了etcd支持
+	    err := runtime_viper.WatchRemoteConfig()
+	    if err != nil {
+	        log.Errorf("unable to read remote config: %v", err)
+	        continue
+	    }
+
+	    // 将新配置反序列化到我们运行时的配置结构体中。你还可以借助channel实现一个通知系统更改的信号
+	    runtime_viper.Unmarshal(&runtime_conf)
+	}
+}()
+```
+
+
+
+#### 取
+
+- 在 `viper` 中，有几种方法可以根据值的类型获取值。存在以下功能和方法:
+
+  - `Get(key string) : interface{}`
+
+  - `GetBool(key string) : bool`
+
+  - `GetFloat64(key string) : float64`
+
+  - `GetInt(key string) : int`
+
+  - `GetIntSlice(key string) : []int`
+
+  - `GetString(key string) : string`
+
+  - `GetStringMap(key string) : map[string]interface{}`
+
+  - `GetStringMapString(key string) : map[string]string`
+
+  - `GetStringSlice(key string) : []string`
+
+  - `GetTime(key string) : time.Time`
+
+  - `GetDuration(key string) : time.Duration`
+
+  - `IsSet(key string) : bool`
+
+  - `AllSettings() : map[string]interface{}`
+
+- 需要认识到的一件重要事情是，每一个 `Get` 方法在找不到值的时候都会返回零值。为了检查给定的键是否存在，提供了 `IsSet()` 方法：
+
+  ```go
+  viper.GetString("logfile") // 不区分大小写的设置和获取
+  if viper.GetBool("verbose") {
+      fmt.Println("verbose enabled")
+  }
+  ```
+
+##### 访问嵌套的键
+
+- 访问器方法也接受深度嵌套键的格式化路径。例如，如果加载下面的 `JSON` 文件：
+
+  ```json
+  {
+      "host": {
+          "address": "localhost",
+          "port": 5799
+      },
+      "datastore": {
+          "metric": {
+              "host": "127.0.0.1",
+              "port": 3099
+          },
+          "warehouse": {
+              "host": "198.0.0.1",
+              "port": 2112
+          }
+      }
+  }
+  ```
+
+- `viper` 可以通过传入`.`分隔的路径来访问嵌套字段：
+
+  ```go
+  GetString("datastore.metric.host") // (返回 "127.0.0.1")
+  ```
+
+- 这遵守上面建立的优先规则；搜索路径将遍历其余配置注册表，直到找到为止。例如，在给定此配置文件的情况下， `datastore.metric.host` 和 `datastore.metric.port` 均已定义（并且可以被覆盖）。如果另外在默认值中定义了 `datastore.metric.protocol` ，`viper` 也会找到它。
+
+- 然而，如果 `datastore.metric` 被直接赋值覆盖（被 `flag`，环境变量，`set()`方法等等…），那么 `datastore.metric `的所有子键都将变为未定义状态，它们被高优先级配置级别**“遮蔽”（shadowed）**了。
+
+- 最后，如果存在与分隔的键路径匹配的键，则返回其值。例如：
+
+  ```go
+  {
+      "datastore.metric.host": "0.0.0.0",
+      "host": {
+          "address": "localhost",
+          "port": 5799
+      },
+      "datastore": {
+          "metric": {
+              "host": "127.0.0.1",
+              "port": 3099
+          },
+          "warehouse": {
+              "host": "198.0.0.1",
+              "port": 2112
+          }
+      }
+  }
+  
+  GetString("datastore.metric.host") // 返回 "0.0.0.0"
+  ```
+
+##### 提取子树
+
+- 从 `viper` 中提取子树。例如，`viper` 实例现在代表了以下配置：
+
+  ```yaml
+  app:
+    cache1:
+      max-items: 100
+      item-size: 64
+    cache2:
+      max-items: 200
+      item-size: 80
+  ```
+
+- 执行后：
+
+  ```go
+  subv := viper.Sub("app.cache1")
+  ```
+
+- `subv` 现在就代表：
+
+  ```yaml
+  max-items: 100
+  item-size: 64
+  ```
+
+- 假设我们现在有这么一个函数：
+
+  ```go
+  func NewCache(cfg *Viper) *Cache {...}
+  ```
+
+- 它基于 `subv` 格式的配置信息创建缓存。现在，可以轻松地分别创建这两个缓存，如下所示：
+
+  ```go
+  cfg1 := viper.Sub("app.cache1")
+  cache1 := NewCache(cfg1)
+  
+  cfg2 := viper.Sub("app.cache2")
+  cache2 := NewCache(cfg2)
+  ```
+
+##### 反序列化
+
+- 你还可以选择将所有或特定的值解析到结构体、map等。有两种方法可以做到这一点：
+
+  - `Unmarshal(rawVal interface{}) : error`
+  - `UnmarshalKey(key string, rawVal interface{}) : error`
+
+  ```go
+  type config struct {
+  	Port int
+  	Name string
+  	PathMap string `mapstructure:"path_map"`
+  }
+  
+  var C config
+  
+  err := viper.Unmarshal(&C)
+  if err != nil {
+  	t.Fatalf("unable to decode into struct, %v", err)
+  }
+  ```
+
+- 如果你想要解析那些键本身就包含 `.` (默认的键分隔符）的配置，你需要修改分隔符：
+
+  ```go
+  v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+  
+  v.SetDefault("chart::values", map[string]interface{}{
+      "ingress": map[string]interface{}{
+          "annotations": map[string]interface{}{
+              "traefik.frontend.rule.type":                 "PathPrefix",
+              "traefik.ingress.kubernetes.io/ssl-redirect": "true",
+          },
+      },
+  })
+  
+  type config struct {
+  	Chart struct{
+          Values map[string]interface{}
+      }
+  }
+  
+  var C config
+  
+  v.Unmarshal(&C)
+  ```
+
+- `viper` 还支持解析到嵌入的结构体：
+
+  ```go
+  /*
+  Example config:
+  
+  module:
+      enabled: true
+      token: 89h3f98hbwf987h3f98wenf89ehf
+  */
+  type config struct {
+  	Module struct {
+  		Enabled bool
+  
+  		moduleConfig `mapstructure:",squash"`
+  	}
+  }
+  
+  // moduleConfig could be in a module specific package
+  type moduleConfig struct {
+  	Token string
+  }
+  
+  var C config
+  
+  err := viper.Unmarshal(&C)
+  if err != nil {
+  	t.Fatalf("unable to decode into struct, %v", err)
+  }
+  ```
+
+  > `viper` 在后台使用[github.com/mitchellh/mapstructure](https://github.com/mitchellh/mapstructure)来解析值，其默认情况下使用`mapstructure`标签。
+
+##### 序列化成字符串
+
+- 你可能需要将viper中保存的所有设置序列化到一个字符串中，而不是将它们写入到一个文件中。你可以将自己喜欢的格式的序列化器与 `AllSettings()` 返回的配置一起使用：
+
+  ```go
+  import (
+      yaml "gopkg.in/yaml.v2"
+      // ...
+  )
+  
+  func yamlStringSettings() string {
+      c := viper.AllSettings()
+      bs, err := yaml.Marshal(c)
+      if err != nil {
+          log.Fatalf("unable to marshal config to YAML: %v", err)
+      }
+      return string(bs)
+  }
+  ```
+
+#### 单个 `viper` 还是多个？
+
+- `viper` 是开箱即用的。你不需要配置或初始化即可开始使用 `viper` 。由于大多数应用程序都希望使用单个中央存储库管理它们的配置信息，所以 `viper` 包提供了这个功能。它**类似**于**单例模式**。在上面的所有示例中，它们都以其单例风格的方法演示了如何使用 `viper` 。
+
+- 使用多个 `viper` 是被允许的，每个都有自己独特的一组配置和值。每个人都可以从不同的配置文件，KV存储区等读取数据。每个都可以从不同的配置文件、键值存储等中读取。 `viper` 包支持的所有功能都被镜像为 `viper` 实例的方法：
+
+  ```go
+  x := viper.New()
+  y := viper.New()
+  
+  x.SetDefault("ContentDir", "content")
+  y.SetDefault("ContentDir", "foobar")
+  
+  //...
+  ```
+
+#### 案例
+
+- https://www.liwenzhou.com/posts/Go/viper_tutorial/#autoid-1-6-1
 
 ---
 

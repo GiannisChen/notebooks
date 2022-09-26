@@ -109,23 +109,23 @@ func DFS(g graph, n, m int) {
 2. 输入就是二维矩阵，可以看成是图，通常需要按规则遍历四周（`ID-1`，`ID-3`，`ID-4`，`ID-5`，`ID-6`，`ID-8`），同时也要注意是否访问规则，`ID-1` 共享同一个访问标志矩阵，而 `ID-3` 需要维护能够回溯的标志；
 3. 把状态看成是 `node` 而状态转化看成是 `edge` ，转化为类似动态规划的问题，例如 `ID-7`，`ID-9`；
 
-| ID   | LeetCode 题号                                                | 描述                                  |
-| ---- | ------------------------------------------------------------ | ------------------------------------- |
-| 1    | [200. Number of Islands](https://leetcode.cn/problems/number-of-islands/) | 相互不连接的岛屿的个数                |
-| 2    | [690. Employee Importance](https://leetcode.cn/problems/employee-importance/) | 递归返回自身和下属重要性之和          |
-| 3    | [79. Word Search](https://leetcode.cn/problems/word-search/) | 在字母表里找可能出现的字符串          |
-| 4    | [1254. Number of Closed Islands](https://leetcode.cn/problems/number-of-closed-islands/) | 四周都被水包围的岛屿个数              |
-| 5    | [1905. Count Sub Islands](https://leetcode.cn/problems/count-sub-islands/) | 第二张图的岛屿必须建在第一个岛屿上    |
-| 6    | [417. Pacific Atlantic Water Flow](https://leetcode.cn/problems/pacific-atlantic-water-flow/) | 不同海拔的海岛是否可达上下两侧        |
-| 7    | [127. Word Ladder](https://leetcode.cn/problems/word-ladder/) | 单词接龙，每次只能变化一个字符 `hard` |
-| 8    | [695. Max Area of Island](https://leetcode.cn/problems/max-area-of-island/) | 返回面积最大的岛的面积                |
-| 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | 按规则跳跃                            |
+| ID   | LeetCode 题号                                                | 描述                                  | 思路ID                                                       |
+| ---- | ------------------------------------------------------------ | ------------------------------------- | ------------------------------------------------------------ |
+| 1    | [200. Number of Islands](https://leetcode.cn/problems/number-of-islands/) | 相互不连接的岛屿的个数                | 直接 `DFS` 或者 `BFS` ，标记访问过的位置                     |
+| 2    | [690. Employee Importance](https://leetcode.cn/problems/employee-importance/) | 递归返回自身和下属重要性之和          | 广义图论，`DFS` 或 `BFS` ，甚至不用建图                      |
+| 3    | [79. Word Search](https://leetcode.cn/problems/word-search/) | 在字母表里找可能出现的字符串          | `DFS`，由于字母表最大容量较小，采用位运算来记录是否访问过，而不是矩阵 |
+| 4    | [1254. Number of Closed Islands](https://leetcode.cn/problems/number-of-closed-islands/) | 四周都被水包围的岛屿个数              | `ID-1` 的变种，只需把边界一圈先遍历掉，但不计数即可          |
+| 5    | [1905. Count Sub Islands](https://leetcode.cn/problems/count-sub-islands/) | 第二张图的岛屿必须建在第一个岛屿上    | 需要遍历完，不然会产生额外的岛，其他没啥和 `ID-4` 一样       |
+| 6    | [417. Pacific Atlantic Water Flow](https://leetcode.cn/problems/pacific-atlantic-water-flow/) | 不同海拔的海岛是否可达上下两侧        | `DFS` 反向操作，从边上向中心传播                             |
+| 7    | [127. Word Ladder](https://leetcode.cn/problems/word-ladder/) | 单词接龙，每次只能变化一个字符 `hard` | `BFS` ，邻接表，用双向队列控制扇出                           |
+| 8    | [695. Max Area of Island](https://leetcode.cn/problems/max-area-of-island/) | 返回面积最大的岛的面积                | `DFS` 多一个返回值，很直白                                   |
+| 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | 按规则跳跃                            | `DFS`，我用了双队列优化，通过删邻接表来控制队列规模          |
 
 
 
-#### 拓扑排序
+#### 拓扑问题
 
-- `Topological Sort`
+- **拓扑排序**（`Topological Sort`）
 
 ##### 关键路径问题（先后顺序）
 
@@ -310,7 +310,7 @@ func DFS(g graph, n, m int) {
    
    - **桥**：若从图中删除边 e 之后，图将分裂成两个不相连的子图，那么称 e 为图的**桥**或**割边**：（红边）
    
-     ![bridge-edge-graph](../../../Drawios/bridge-edge-graph.svg)
+     ![bridge-edge-graph](images/bridge-edge-graph.svg)
    
      ```go
      func criticalConnections(n int, connections [][]int) (ans [][]int) {
@@ -356,23 +356,39 @@ func DFS(g graph, n, m int) {
 
 ##### 图染色问题
 
-图二分染色 (785. Is Graph Bipartite?)
+- **二分图**：（`ID-5`）
+  1. 当且仅当图中无**奇圈**，与之前 `DFS` 一样，但是访问中的点标记不太一样，仿照 `tarjan` 算法中的 `clock` ，我们也能给环计数，本质上是**图论**；
+  2. 模拟染色，比上面的方法更加直白，通过父亲节点判断下一个颜色，如果染色冲突则跳出，那么，`BFS` 和 `DFS` 皆可，本质上是**模拟** + **遍历**；
+
+##### 拓扑问题例题
+
+| ID   | LeetCode 题号                                                | 描述                                                 | 思路                                                         |
+| ---- | ------------------------------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------------ |
+| 1    | [210. Course Schedule II](https://leetcode.cn/problems/course-schedule-ii/) | 经典图论中先后顺序问题                               | `BFS` `DFS` 都可以，注意谁先谁后就行，可以通过去入度时候进队列来判断是否为入度零 |
+| 2    | [269. Alien Dictionary](https://leetcode.cn/problems/alien-dictionary/) | 给定一个按字典升序排列的字符串数组，判定字符先后顺序 | 按照规则构建对应先后顺序表就行，小细节                       |
+| 3    | [207. Course Schedule](https://leetcode.cn/problems/course-schedule/) | 图论中是否成环的问题                                 | `DFS` + 状态数组                                             |
+| 4    | [1192. Critical Connections in a Network](https://leetcode.cn/problems/critical-connections-in-a-network/) | 图中是否有桥                                         | 判断是否有桥，板子 `tarjan` 算法                             |
+| 5    | [785. Is Graph Bipartite?](https://leetcode.cn/problems/is-graph-bipartite/) | 是否为二分图                                         | 无奇圈+`DFS`或模拟染色                                       |
 
 
 
-##### 例题
+#### 最短（最长）路径
 
-| ID   | LeetCode 题号                                                | 描述                                                 |
-| ---- | ------------------------------------------------------------ | ---------------------------------------------------- |
-| 1    | [210. Course Schedule II](https://leetcode.cn/problems/course-schedule-ii/) | 经典图论中先后顺序问题                               |
-| 2    | [269. Alien Dictionary](https://leetcode.cn/problems/alien-dictionary/) | 给定一个按字典升序排列的字符串数组，判定字符先后顺序 |
-| 3    | [207. Course Schedule](https://leetcode.cn/problems/course-schedule/) | 图论中是否成环的问题                                 |
-| 4    | [1192. Critical Connections in a Network](https://leetcode.cn/problems/critical-connections-in-a-network/) | 图中是否有桥                                         |
+##### 病毒传播问题
+
+- 病毒会感染周围，适合用 `BFS` 做，记录层数。（虽然作死用了 `DFS` ，但是根本做不出~）（`ID-1`，`ID-2`）
 
 
 
-最短（最长）路径
-经典BFS题 994. Rotting Oranges, 909. Snakes and Ladders, 1091. Shortest Path in Binary Matrix, 1293. Shortest Path in a Grid with Obstacles Elimination
+##### 路径例题
+
+| ID   | LeetCode 题号                                                | 描述               | 思路                                     |
+| ---- | ------------------------------------------------------------ | ------------------ | ---------------------------------------- |
+| 1    | [994. Rotting Oranges](https://leetcode.cn/problems/rotting-oranges/) | 腐烂橘子向四周传播 | `BFS` + 广义层数记录                     |
+| 2    | [909. Snakes and Ladders](https://leetcode.cn/problems/snakes-and-ladders/) | 规则爬塔棋         | `BFS` + 层数记录，注意题意，**我是傻逼** |
+| 3    | [1091. Shortest Path in Binary Matrix](https://leetcode.cn/problems/shortest-path-in-binary-matrix/) | 最短路             | `BFS` + 层数记录                         |
+
+经典BFS题  1091. Shortest Path in Binary Matrix, 1293. Shortest Path in a Grid with Obstacles Elimination
 Dijkstra （用heap 写，准备模板） （1631. Path With Minimum Effort， 1066. Campus Bikes II）.
 并查集Union Find  准备模板
 用于快速合并图的不同components （305. Number of Islands II）
@@ -531,32 +547,3 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
   补充内容 (2022-01-21 03:51 +8:00):
   还是有问题。。。。
   是 dp_i   和 dp_i,j
-
-
-
-# 思路
-
-## 图
-
-- 见[图的遍历](#图的遍历例题)
-
-| ID   | LeetCode 题号                                                | 思路                                                         |
-| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 1    | [200. Number of Islands](https://leetcode.cn/problems/number-of-islands/) | 直接 `DFS` 或者 `BFS` ，标记访问过的位置                     |
-| 2    | [690. Employee Importance](https://leetcode.cn/problems/employee-importance/) | 广义图论，`DFS` 或 `BFS` ，甚至不用建图                      |
-| 3    | [79. Word Search](https://leetcode.cn/problems/word-search/) | `DFS`，由于字母表最大容量较小，采用位运算来记录是否访问过，而不是矩阵 |
-| 4    | [1254. Number of Closed Islands](https://leetcode.cn/problems/number-of-closed-islands/) | `ID-1` 的变种，只需把边界一圈先遍历掉，但不计数即可          |
-| 5    | [1905. Count Sub Islands](https://leetcode.cn/problems/count-sub-islands/) | 需要遍历完，不然会产生额外的岛，其他没啥和 `ID-4` 一样       |
-| 6    | [417. Pacific Atlantic Water Flow](https://leetcode.cn/problems/pacific-atlantic-water-flow/) | `DFS` 反向操作，从边上向中心传播                             |
-| 7    | [127. Word Ladder](https://leetcode.cn/problems/word-ladder/) | `BFS` ，邻接表，用双向队列控制扇出                           |
-| 8    | [695. Max Area of Island](https://leetcode.cn/problems/max-area-of-island/) | `DFS` 多一个返回值，很直白                                   |
-| 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | `DFS`，我用了双队列优化，通过删邻接表来控制队列规模          |
-
-- 见[拓扑排序](#拓扑排序)
-
-| ID   | LeetCode 题号                                                | 思路                                                         |
-| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| 1    | [210. Course Schedule II](https://leetcode.cn/problems/course-schedule-ii/) | `BFS` `DFS` 都可以，注意谁先谁后就行，可以通过去入度时候进队列来判断是否为入度零 |
-| 2    | [269. Alien Dictionary](https://leetcode.cn/problems/alien-dictionary/) | 按照规则构建对应先后顺序表就行，小细节                       |
-| 3    | [207. Course Schedule](https://leetcode.cn/problems/course-schedule/) | `DFS` + 状态数组                                             |
-| 4    | [1192. Critical Connections in a Network](https://leetcode.cn/problems/critical-connections-in-a-network/) | 判断是否有桥，板子 `tarjan` 算法                             |
