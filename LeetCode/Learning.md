@@ -11,7 +11,7 @@
 - https://books.halfrost.com/leetcode/
 - https://algorithm-essentials.soulmachine.me/
 
-## 图 Graph
+## 图（Graph）
 
 - 图的基础就是**图的遍历**，树或者森林也是特殊的图，遍历方法通常就是 `DFS` **深度遍历**和 `BFS` **广度遍历**。
 
@@ -489,7 +489,7 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 
 
-## 动态规划
+## 动态规划（Dynamic Programming）
 
 - 动态规划（`Dynamic Programming`）
 
@@ -556,7 +556,7 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
   }
   ```
 
-#### 背包DP问题
+#### 背包DP
 
 - 背包问题是经典的 `dp` 题目，指一个容量有限的背包装最大价值的东西：
 
@@ -587,6 +587,8 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
       }
   }
   ```
+
+- [801. Minimum Swaps To Make Sequences Increasing](https://leetcode.cn/problems/minimum-swaps-to-make-sequences-increasing/) 这一题作为开始还挺不错的，虽然这一题不知道为啥这么
 
 
 
@@ -673,7 +675,7 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 
 
-#### 区间规划DP问题
+#### 区间DP
 
 -  **区间类动态规划**是线性动态规划的扩展，它在分阶段地划分问题时，与阶段中元素出现的顺序和由前一阶段的哪些元素合并而来有很大的关系。
 - 令状态 $f[i][j]$ 表示将下标位置 $i$ 到 $j$ 的所有元素合并能获得的价值的最大值，那么 $f[i][j]=max\{f[i][k]+f[k+1][j]+cost\}$ ， $cost$ 为将这两组元素合并起来的代价。
@@ -691,9 +693,21 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 - 那么处理环上呢，我们可以复制整个链，变成 $2 \times n$ 个，其中第 $i$ 堆与第 $n+i$ 堆相同，用动态规划求解后，取 $f[1][n],f[2][n+2], \dots ,f[n-1][2n-2]$中的最优值，为最后的答案。
 
+##### 例题
+
+- 以`ID-4` [664. Strange Printer](https://leetcode.cn/problems/strange-printer/)  为例，类似于 `INSERT` 模式切换成覆盖，求最小的写次数；不难发现，可以使用区间DP分割成子串计算，其**转移方程**：
+  $$
+  dp[i][j]=
+  \begin{cases}
+  dp[i][j-1] & s[i]=s[j] \\
+  \min_{i \leq k \leq j-1}dp[i][k]+dp[k+1][j] & s[i] \neq s[j] \\
+  \end{cases}
+  $$
+  感觉原理通了，这题不值得 `hard` 🤔
 
 
-#### DAG有向无环图DP问题
+
+#### DAG有向无环图DP
 
 1. **建立DAG**，每一个节点表示一种姿态的方块 $(h,(a,b))$ ，其中 $(a.b)$ 是无序的，那么我们能建立一个DAG了。我们将以两种方块为例：$(31,41,59)$ 和 $(33,83,27)$
 
@@ -708,7 +722,7 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 
 
-#### 树形DP问题
+#### 树形DP
 
 - 树形 DP，即在树上进行的 DP。由于树固有的递归性质，树形 DP 一般都是递归进行的。
 
@@ -724,7 +738,61 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 2. 通过 `DFS` ，在返回上一层时更新当前节点的最优解。
 
-##### 树上背包问题
+##### 例题
+
+1. 以 `ID-3` [LCP 64. 二叉树灯饰](https://leetcode.cn/problems/U7WvvU/) 为例，对于每个根节点 $i$，可见的几个状态分别为：
+
+   - 不受任何祖先节点的影响，我们可以记为 $00$；
+
+   - 受到**开关2**的影响，记为 $01$；
+
+   - 受到**开关3**的影响，记为 $10$；
+
+   - 受到**开关2**和**开关3**的影响，记为 $11$；
+
+2. 我们需要把所有灯都关上，所以最后的状态都应该是关灯；当前节点状态为 $1$ 时，我们可以使用一次开关和三次开关来改变状态；状态为 $0$ 时也类似，那么我们可以写**转移方程**和 `DFS` 了：
+
+   ```go
+   var dfs func(label int, node *TreeNode, state byte) int
+   dfs = func(label int, node *TreeNode, state byte) int {
+       ...
+       tmp := state
+       // now off
+       if switch_off {
+           // do nothing
+           ...
+           // switch 1+2
+           ...
+           // switch 1+3
+           ...
+           // switch 2+3
+           ...
+       } else { // now on
+           // switch 1
+           ...
+           // switch 2
+           ...
+           // switch 3
+           ...
+           // switch 1+2+3
+           ...
+       }
+       total[label][tmp] = ret
+       return total[label][tmp]
+   }
+   
+   a := dfs(1, root, 0)
+   ```
+
+   $$
+   f[u][state]=\min\{f[u*2][state_{next}]+f[u*2+1][state_{next}]+a_{switch}\}
+   $$
+
+   其中，$u$ 为当前节点编号，$state$ 为当前状态，$state_{next}$ 为下一个状态，这与开关选择有关，同时也要加上 $a_{switch}$ 这个状态转换消耗；😀（成功打卡第一道树形DP了属于是，可惜没在LCP之前学完~）
+
+
+
+##### 树上背包
 
 > 现在有 $n$ 门课程，第 $i$ 门课程的学分为 $a_i$，每门课程有零门或一门先修课，有先修课的课程需要先学完其先修课，才能学习该课程。一位学生要学习 $m$ 门课程，求其能获得的最多学分数。
 
@@ -779,7 +847,7 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 
 
-##### 换根DP
+#### 换根DP
 
 - 树形 DP 中的换根 DP 问题又被称为二次扫描，通常不会指定根结点，并且根结点的变化会对一些值，例如子结点深度和、点权和等产生影响。
 
@@ -803,7 +871,7 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 
 
-##### 状压DP
+#### 状压DP
 
 - 状压 DP 是动态规划的一种，通过将状态压缩为整数来达到优化转移的目的。
 
@@ -814,86 +882,582 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
    f[i][j][l]=\sum f[i-1][x][l-sta(j)]
    $$
 
+2. 
 
+- [LCP 69. Hello LeetCode!](https://leetcode.cn/problems/rMeRt2/) 状态压缩受苦题，可以感受一下，超过标准的 `HARD` 题。
+
+
+
+#### 数位DP
+
+- 数位是指把一个数字按照个、十、百、千等等一位一位地拆开，关注它每一位上的数字。如果拆的是十进制数，那么每一位数字都是 $0 \sim 9$，其他进制可类比十进制。**数位 DP**用来解决这一类特定问题，这种问题比较好辨认，一般具有这几个特征：
+
+  1. 要求统计满足一定条件的数的数量（即，最终目的为计数）；
+  2. 这些条件经过转化后可以使用「**数位**」的思想去理解和判断；
+  3. 输入会提供一个数字区间（有时也只提供上界）来作为统计的限制；
+  4. 上界很大（比如 $10^{18}$），暴力枚举验证会超时。
+
+- **基本原理**：
+
+  - 考虑人类计数的方式，最朴素的计数就是从小到大开始依次加一。但我们发现对于位数比较多的数，这样的过程中有许多重复的部分。例如，从 7000 数到 7999、从 8000 数到 8999、和从 9000 数到 9999 的过程非常相似，它们都是后三位从 000 变到 999，不一样的地方只有千位这一位，所以我们可以把这些过程归并起来，将这些过程中产生的计数答案也都存在一个通用的数组里。此数组根据题目具体要求设置状态，用递推或 DP 的方式进行状态转移。
+
+  - 数位 DP 中通常会利用常规计数问题技巧，比如把一个区间内的答案拆成两部分相减（即
+    $$
+    ans_{[l,r]}=ans_{[0,r]}-ans_{[0,l-1]}
+    $$
+
+  - 那么有了通用答案数组，接下来就是统计答案。统计答案可以选择记忆化搜索，也可以选择循环迭代递推。为了不重不漏地统计所有不超过上限的答案，要从高到低枚举每一位，再考虑每一位都可以填哪些数字，最后利用通用答案数组统计答案。
 
 
 
 #### 动态规划例题
 
-| ID   | LeetCode 题号                                                | 描述           | 思路                                                         |
-| ---- | ------------------------------------------------------------ | -------------- | ------------------------------------------------------------ |
-| 1    | [300. Longest Increasing Subsequence](https://leetcode.cn/problems/longest-increasing-subsequence/) | 最长递增子序列 | 一维 `dp`，$f[i+1]=\underset{0 \leq j \leq i}{max}\{f[j]\}$  |
-| 2    | [1143. Longest Common Subsequence](https://leetcode.cn/problems/longest-common-subsequence/) | 最长公共子序列 | 二维 `dp`，$f[i+1][j+1] = \begin{cases} f[i][j] & str1[i]=str2[j] \\max(f[i+1][j],f[i][j+1]) & str1[i] \ne str2[j] \end{cases}$ |
-|      |                                                              |                |                                                              |
-
-有状态转化方程，可以把大问题转化为几个小问题，或者可以按某种顺序依次解决问题。（用图的思想，data是node, operation是edge）
-常见思路
-用dp代表关于arr[0:i]的subproblem  (只到i 或者 从i开始的subproblem）
-用dp[j] 代表关于arr[i:j+1]的subproblem （或者是关于两个数组的 arr[0:i] 和 arr2[0:j]的subproblem, 或者关于两个变量i,j的subproblem）
-经典DP题目.
- (2D version: 354. Russian Doll Envelopes)
-
-Longest Substring Without Repeating Characters
-字符串操作： 72. Edit Distance， 44. Wildcard Matching, 10. Regular Expression Matching
-Palindrome problems: 647. Palindromic Substrings, 5. Longest Palindromic Substring
-Prefix sum/max/min 相关： 42. Trapping Rain Water, 1423. Maximum Points You Can Obtain from Cards， Range Sum Query - Immutable, 304. Range Sum Query 2D - Immutable
-Word Break 系列
-硬币零钱系列 Coin Change
-买股票系列 Best Time to Buy and Sell Stock
-跳跃游戏系列 Jump games
-抢劫系列 House Robber
-石头游戏系列（Alice & Bob) Stone Game
-Unique Paths 系列
-688 Knight Probability in Chessboard
-摘樱桃 Pick cherry
-174  Dungeon Game
-1277 Count Square Submatrices with All Ones
-加油站问题 871. Minimum Number of Refueling Stops
+| ID   | LeetCode 题号                                                | 描述                     | 思路                                                         |
+| ---- | ------------------------------------------------------------ | ------------------------ | ------------------------------------------------------------ |
+| 1    | [300. Longest Increasing Subsequence](https://leetcode.cn/problems/longest-increasing-subsequence/) | 最长递增子序列           | 一维 DP，$f[i+1]=\underset{0 \leq j \leq i}{max}\{f[j]\}$    |
+| 2    | [1143. Longest Common Subsequence](https://leetcode.cn/problems/longest-common-subsequence/) | 最长公共子序列           | 二维 DP，$f[i+1][j+1] = \begin{cases} f[i][j] & str1[i]=str2[j] \\max(f[i+1][j],f[i][j+1]) & str1[i] \ne str2[j] \end{cases}$ |
+| 3    | [LCP 64. 二叉树灯饰](https://leetcode.cn/problems/U7WvvU/)   | 二叉灯树开关问题         | 树形DP，通过存储状态来减少搜索过程，即**记忆化搜索**         |
+| 4    | [664. Strange Printer](https://leetcode.cn/problems/strange-printer/) | 覆盖打印，求最小打印次数 | 区间DP，$dp[i][j] = \begin{cases} dp[i][j-1] & s[i]=s[j] \\ \max_{i \leq k \leq j-1}(dp[i][j],dp[i][k]+dp[k+1][j]) & s[i] \ne s[j] \end{cases}$ |
+| 5    | [801. Minimum Swaps To Make Sequences Increasing](https://leetcode.cn/problems/minimum-swaps-to-make-sequences-increasing/) | 两个数组对应位置进行交换 | DP，滚动数组                                                 |
+| 6    | [LCP 69. Hello LeetCode!](https://leetcode.cn/problems/rMeRt2/) | 字典中取字符，代价最小   | DP + 状态压缩 + DP + DFS                                     |
 
 
 
-## 树 Tree 
+| 题                                                | 题                                             | 题                                    | 题                                          |
+| ------------------------------------------------- | ---------------------------------------------- | ------------------------------------- | ------------------------------------------- |
+| 354. Russian Doll Envelopes                       | Longest Substring Without Repeating Characters | 72. Edit Distance                     | 44. Wildcard Matching                       |
+| 10. Regular Expression Matching                   | 647. Palindromic Substrings                    | 5. Longest Palindromic Substring      | 42. Trapping Rain Water                     |
+| 1423. Maximum Points You Can Obtain from Cards    | Palindrome problems                            | Prefix sum/max/min                    | Range Sum Query - Immutable                 |
+| 304. Range Sum Query 2D - Immutable               | Word Break 系列                                | 硬币零钱系列 Coin Change              | 买股票系列 Best Time to Buy and Sell Stock  |
+| 跳跃游戏系列 Jump games                           | 抢劫系列 House Robber                          | 石头游戏系列（Alice & Bob) Stone Game | Unique Paths 系列                           |
+| 688 Knight Probability in Chessboard              | 摘樱桃 Pick cherry                             | 174  Dungeon Game                     | 1277 Count Square Submatrices with All Ones |
+| 加油站问题 871. Minimum Number of Refueling Stops |                                                |                                       |                                             |
 
-树的遍历
-DFS (binary tree: in-order, pre-order,  post-order)
-BFS: 314. Binary Tree Vertical Order Traversal， 199. Binary Tree Right Side View
-递归大法 (大部分树的题都能递归，大的问题(root)，等于先解决几个子问题（subtree), 然后合并）:
-124 Binary Tree Maximum Path Sum，
-366 Find Leaves of Binary Tree
-Lowest Common Ancestor系列
-Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
-树的编码和解码
-297 Serialize and Deserialize Binary Tree
-428 Serialize and Deserialize N-ary Tree
-把树变成图： 863. All Nodes Distance K in Binary Tree
+## 树（Tree ）
 
-1. 
-2. 堆 Heap, 栈 Stack, 队 Queue
-  栈 Stack. 1point 3 acres
-  常规题
-  946 Validate Stack Sequences
-  Asteroid Collision
-  括号题
-  Valid Parentheses, Remove Invalid Parentheses
-  Basic Calculator 系列
-  Nested List Iterator 系列
-  Decode String， Number of Atoms. .и
-  单调栈
-  Next Greater Element 系列
-  402 Remove K Digits
-  853 Car Fleet
-  739 Daily Temperatures
-  堆 Heap
-  Top k： 215. Kth Largest Element in an Array， 347. Top K Frequent Elements
-  中位数： double heap 295. Find Median from Data Stream
-  另外一道经典中位数题目 4. Median of Two Sorted Arrays. 1point3acres
-  会议室问题 253. Meeting Rooms II
-  CPU分配 模板: LC 1834. Single-Threaded CPU, LC 1882. Process Tasks Using Servers.1point3acres
-  队 Queue, Deque
-  BFS related
-  239 Sliding Window Maximum  ---> 2D sliding window maximum ( 转化成两次1D的问题）
-  Moving Average from Data Stream
-3. 链表 LinkedList
+- 是一个一个一个无环图罢了（悲~
+
+#### 树的遍历
+
+- 树的遍历可以参考[图的遍历](#图的遍历)，其他稍微有点特殊的另外给出：
+
+##### DFS（先序，中序，后序）
+
+- **先序**（`pre-order`）[144. Binary Tree Preorder Traversal](https://leetcode.cn/problems/binary-tree-preorder-traversal/)
+
+  ```go
+  func preOrder(node *TreeNode) {
+      if node != nil {
+          ...
+          preOrder(node.Left)
+          preOrder(node.Right)
+      }
+  }
+  ```
+
+  ```go
+  func preOrder(node *TreeNode) {
+      stack := make([]*TreeNode, 0)
+      ptr := root
+      for ptr != nil || len(stack) != 0 {
+          if ptr != nil {
+              ...
+              stack = append(stack, ptr)
+              ptr = ptr.Left
+          }  else {
+              ptr = stack[len(stack)-1].Right
+              stack = stack[:len(stack)-1]
+          }
+      }
+  }
+  ```
+
+- **中序**（`in-order`）[94. Binary Tree Inorder Traversal](https://leetcode.cn/problems/binary-tree-inorder-traversal/)
+
+  ```go
+  func inOrder(node *TreeNode) {
+      if node != nil {
+          preOrder(node.Left)
+          ...
+          preOrder(node.Right)
+      }
+  }
+  ```
+
+  ```go
+  func inOrder(node *TreeNode) {
+      stack := make([]*TreeNode, 0)
+      ptr := root
+      for ptr != nil || len(stack) != 0 {
+          if ptr != nil {
+              stack = append(stack, ptr)
+              ptr = ptr.Left
+          }  else {
+              ptr = stack[len(stack)-1].Right
+              ...
+              stack = stack[:len(stack)-1]
+          }
+      }
+  }
+  ```
+
+- **后序**（`post-order`）[145. Binary Tree Postorder Traversal](https://leetcode.cn/problems/binary-tree-postorder-traversal/)
+
+  ```go
+  func preOrder(node *TreeNode) {
+      if node != nil {
+          ...
+          preOrder(node.Left)
+          preOrder(node.Right)
+      }
+  }
+  ```
+
+  ```go
+  func inOrder(node *TreeNode) {
+      stack := make([]*TreeNode, 0)
+      visited := make([]bool, 0)
+      res := make([]*TreeNode, 0)
+      ptr := root
+      stack = append(stack, ptr)
+      visited = append(visited, false)
+      
+      for len(stack) != 0 {
+          ptr, v = stack[len(stack)-1], visited[len(stack)-1]
+          stack, visited = stack[:len(stack)-1], visited[:len(stack)-1]
+          if v {
+              res = append(res, ptr)
+          }  else {
+              stack = append(stack, ptr)
+      		visited = append(visited, true)
+              if ptr.Right != nil {
+                  stack = append(stack, ptr.Right)
+  	    		visited = append(visited, false)
+              }
+              if ptr.Left != nil {
+                  stack = append(stack, ptr.Left)
+  	    		visited = append(visited, false)
+              }
+          }
+      }
+  }
+  ```
+  
+- 树的遍历题很多都是可以通过**递归**来解决，经典的是 `DFS` 。
+
+#### 树的遍历例题
+
+| ID   | LeetCode 题号                                                | 描述                        | 思路                                                         |
+| ---- | ------------------------------------------------------------ | --------------------------- | ------------------------------------------------------------ |
+| 1    | [199. Binary Tree Right Side View](https://leetcode.cn/problems/binary-tree-right-side-view/) | 树的右视图                  | 层序遍历 `BFS`，每次添加层末尾元素                           |
+| 2    | [124. Binary Tree Maximum Path Sum](https://leetcode.cn/problems/binary-tree-maximum-path-sum/) | 无向树中权最大的路径        | `DFS` 更新和返回值分开，**更新**当前节点 + 左子树递归 + 右子树递归，**返回**当前节点 + 子树递归最大值 |
+| 3    | [98. Validate Binary Search Tree](https://leetcode.cn/problems/validate-binary-search-tree/) | 验证是否是二叉搜索树        | 要注意整棵子树和根节点的大小关系                             |
+| 4    | [297. Serialize and Deserialize Binary Tree](https://leetcode.cn/problems/serialize-and-deserialize-binary-tree/) | 二叉树的编码和解码          | `DFS` + 按序遍历                                             |
+| 5    | [863. All Nodes Distance K in Binary Tree](https://leetcode.cn/problems/all-nodes-distance-k-in-binary-tree/) | 找距离某节点长度为k的所有点 | `DFS` ，通过记录父节点统一 `DFS` 的过程，通过哈希表排除重复节点 |
+
+| 题                                        | 题                             | 题                         | 题                                       |
+| ----------------------------------------- | ------------------------------ | -------------------------- | ---------------------------------------- |
+| 314. Binary Tree Vertical Order Traversal | 366 Find Leaves of Binary Tree | Lowest Common Ancestor系列 | 428 Serialize and Deserialize N-ary Tree |
+|                                           |                                |                            |                                          |
+|                                           |                                |                            |                                          |
+
+
+
+#### 线段树（Segment Tree）
+
+**参考**
+
+1. https://leetcode.cn/problems/range-sum-query-mutable/solution/by-lfool-v3x9/
+
+
+
+- 一颗线段树长如下图所示，其本质是用于范围统计（$\sum^{r}_{i=l}$）的一个树状结构，采用二分思想；其叶子节点存放着单点信息，而其他非叶节点则存放着范围信息。这就意味着所有范围操作都能**递归**进行，代码简单（但不直白）。
+
+<img src="images/segment-tree-00.svg" alt="img" style="zoom:67%;" />
+
+- 常见的范围统计操作无外乎：$sum$ ， $max$ ，$min$ ，$avg$ 此类。
+
+
+
+##### 已有数组→线段树
+
+- 当给定一个数组时，我们需要在这个基础上“长”出一颗线段树：（**自底向上**）
+
+<img src="images/segment-tree-01.svg">
+
+- 这种线段树的索引构思很巧妙，我们不难发现，**最底层**的节点**二进制**最低位为 $1$，**倒数第二层**的最低位为 $10$，以此类推，我们就能得到递推公式：`i = i + (i & -i)`。以题[307. Range Sum Query - Mutable](https://leetcode.cn/problems/range-sum-query-mutable/)为例：
+
+- **数据结构**
+
+  ```go
+  type NumArray struct {
+  	nums []int
+  	tree []int
+  	n    int
+  }
+  ```
+
+- **添加**和**更新**
+
+  ```go
+  func (na *NumArray) add(index int, val int) {
+  	for i := index + 1; i <= na.n; i += lowBit(i) {
+  		na.tree[i] += val
+  	}
+  }
+  
+  func (na *NumArray) update(index int, val int) {
+  	na.add(index, val-na.nums[index])
+  	na.nums[index] = val
+  }
+  ```
+
+- **范围查询**（这一步区别于标准线段树，他每个节点的和等于从 $1$ 号结点开始到当前节点的数据和，所以这里的 $left$ 其实是 $left+1-1$）
+
+  ```go
+  func (na *NumArray) query(i int) (res int) {
+  	for ; i > 0; i -= lowBit(i) {
+  		res += na.tree[i]
+  	}
+  	return
+  }
+  
+  func (na *NumArray) sumRange(left int, right int) int {
+  	return na.query(right+1) - na.query(left)
+  }
+  ```
+
+
+
+##### 动态开线段树
+
+- 堆式储存的情况下，需要给线段树开 $4n$ 大小的数组（这个数据是 $log_2$ 累加算出来的）。为了节省空间，我们可以不一次性建好树，而是：
+
+  1. 在最初只建立一个根结点代表整个区间；
+  2. 当我们需要访问某个子区间时，才建立代表这个区间的子结点；这样我们不再使用 $2p$ 和 $2p+1$ 代表 $p$ 结点的儿子，而是用 $ls$ 和 $rs$ 记录儿子的编号。总之，动态开点线段树的核心思想就是：**结点只有在有需要的时候才被创建**。
+
+  > 单次操作的时间复杂度是不变的，为 $O(log\,n)$ 。由于每次操作都有可能创建并访问全新的一系列结点，因此 $m$ 次单点操作后结点的数量规模是 $O(m\,log\,n)$。最多也只需要 $2n-1$ 个结点，没有浪费。
+
+- **懒惰标记优化**：更新时线段树讲究向下创建节点，但是现在我不了，对于已有分段我不创建，而是使用**懒惰标记**表示一次或者多次更新，而放到后面再做操作。
+
+- **`map` 版本**：（以 [729. My Calendar I](https://leetcode.cn/problems/my-calendar-i/) 为题）
+
+  ```go
+  type MyCalendar struct {
+  	tree, lazy map[int]bool
+  }
+  
+  func Constructor() MyCalendar {
+  	return MyCalendar{
+  		tree: map[int]bool{},
+  		lazy: map[int]bool{},
+  	}
+  }
+  
+  func (c *MyCalendar) query(start, end int, left, right int, idx int) bool {
+  	if right < start || left > end {
+  		return false
+  	}
+  	if c.lazy[idx] {
+  		return true
+  	}
+  	if start <= left && right <= end {
+  		return c.tree[idx]
+  	}
+  	mid := (left + right) >> 1
+  	return c.query(start, end, left, mid, idx*2) ||
+  		c.query(start, end, mid+1, right, idx*2+1)
+  }
+  
+  func (c *MyCalendar) update(start, end int, left, right int, idx int) {
+  	if right < start || left > end {
+  		return
+  	}
+  	if start <= left && right <= end {
+  		c.tree[idx] = true
+  		c.lazy[idx] = true
+  	} else {
+  		mid := (left + right) >> 1
+  		c.update(start, end, left, mid, idx*2)
+  		c.update(start, end, mid+1, right, idx*2+1)
+  		c.tree[idx] = true
+  		if c.lazy[2*idx] && c.lazy[2*idx+1] {
+  			c.lazy[idx] = true
+  		}
+  	}
+  }
+  
+  func (c *MyCalendar) Book(start int, end int) bool {
+  	if c.query(start, end-1, 0, 1e9, 1) {
+  		return false
+  	}
+  	c.update(start, end-1, 0, 1e9, 1)
+  	return true
+  }
+  ```
+
+- **`tree` 版本**：
+
+  ```go
+  type node struct {
+  	l, r        int
+  	left, right *node
+  	lazy        bool
+  	val         bool
+  }
+  
+  type MyCalendar struct {
+  	root *node
+  }
+  
+  func Constructor() MyCalendar {
+  	return MyCalendar{&node{l: 0, r: 1e9, lazy: false, val: false}}
+  }
+  
+  func query(cur *node, start, end int) bool {
+  	if start > cur.r || end < cur.l {
+  		return false
+  	}
+  	if start <= cur.l && cur.r <= end {
+  		return cur.val
+  	}
+  
+  	lazyCreate(cur)
+  	return query(cur.left, start, end) || query(cur.right, start, end)
+  }
+  
+  func update(cur *node, start, end int) {
+  	if start > cur.r || end < cur.l {
+  		return
+  	}
+  	if start <= cur.l && cur.r <= end {
+  		cur.lazy = true
+  		cur.val = true
+  		return
+  	}
+  
+  	lazyCreate(cur)
+  	update(cur.left, start, end)
+  	update(cur.right, start, end)
+  	cur.val = cur.left.val || cur.right.val
+  }
+  
+  func lazyCreate(cur *node) {
+  	mid := cur.l + (cur.r-cur.l)>>1
+  	if cur.left == nil {
+  		cur.left = &node{l: cur.l, r: mid}
+  	}
+  	if cur.right == nil {
+  		cur.right = &node{l: mid + 1, r: cur.r}
+  	}
+  	if !cur.lazy {
+  		return
+  	}
+  	cur.left.lazy = cur.lazy
+  	cur.right.lazy = cur.lazy
+  	cur.left.val = cur.left.val || cur.lazy
+  	cur.right.val = cur.right.val || cur.lazy
+  	cur.lazy = false
+  }
+  
+  func (c *MyCalendar) Book(start int, end int) bool {
+  	if query(c.root, start, end-1) {
+  		return false
+  	}
+  	update(c.root, start, end-1)
+  	return true
+  }
+  ```
+
+  
+
+#### 线段树例题
+
+| ID   | LeetCode 题号                                                | 描述                           | 思路                                                         |
+| ---- | ------------------------------------------------------------ | ------------------------------ | ------------------------------------------------------------ |
+| 1    | [307. Range Sum Query - Mutable](https://leetcode.cn/problems/range-sum-query-mutable/) | 区域检索和更新                 | 从给定的数组生成线段树                                       |
+| 2    | [729. My Calendar I](https://leetcode.cn/problems/my-calendar-i/) | 日程预定列表                   | 线段树 + 懒惰标记                                            |
+| 3    | [731. My Calendar II](https://leetcode.cn/problems/my-calendar-ii/) | 日程预定列表（可重复预定）     | 线段树 + 懒惰标记，注意更新方式                              |
+| 4    | [732. My Calendar III](https://leetcode.cn/problems/my-calendar-iii/) | 日程预定列表（计算最大重复度） | `LeetCode`不会解释例子可以不解释嗷，万能模板：线段树 + 懒惰标记 |
+| 5    | [2407. Longest Increasing Subsequence II](https://leetcode.cn/problems/longest-increasing-subsequence-ii/) | 最长递增子序列，但是有间隔限制 | 动态开树的线段树优化找的过程，原本还有一维DP的，结果发现不需要，**我是傻逼** |
+| 6    | [715. Range Module](https://leetcode.cn/problems/range-module/) | 范围查询                       | 线段树                                                       |
+
+| 题              | 题              | 题                  |
+| --------------- | --------------- | ------------------- |
+| 715. Range 模块 | 699. 掉落的方块 | 933. 最近的请求次数 |
+
+
+
+## 栈（Stack）
+
+- **常规栈**：就是简单的栈操作，一般直接 `pop` 和 `push` 操作就行了。（例题：`ID-1` `ID-2` `ID-3` `ID-4`）
+
+- **单调栈**：栈中的元素按照一定的规则呈递增或者递减顺序排列，当出现失序时出栈。（例题：`ID-5` `ID-6` `ID-7` `ID-8` ）
+
+  
+
+#### 栈的例题
+
+| ID   | LeetCode 题号                                                | 描述                                                     | 思路                                    |
+| ---- | ------------------------------------------------------------ | -------------------------------------------------------- | --------------------------------------- |
+| 1    | [946. Validate Stack Sequences](https://leetcode.cn/problems/validate-stack-sequences/) | 判断数组是否可以通过栈操作得到重排序的数组               | 用栈模拟                                |
+| 2    | [735. Asteroid Collision](https://leetcode.cn/problems/asteroid-collision/) | 行星碰撞问题                                             | 用栈模拟，注意规则细节                  |
+| 3    | [20. Valid Parentheses](https://leetcode.cn/problems/valid-parentheses/) | 判断括号是否合规                                         | 栈模拟                                  |
+| 4    | [301. Remove Invalid Parentheses](https://leetcode.cn/problems/remove-invalid-parentheses/) | 移除非法括号                                             | 栈模拟统计 + `DFS`，竟然没有优化方法... |
+| 5    | [496. Next Greater Element I](https://leetcode.cn/problems/next-greater-element-i/) | 找到数组里对应数字比他大的下一个数字                     | 严格单调递增栈                          |
+| 6    | [503. Next Greater Element II](https://leetcode.cn/problems/next-greater-element-ii/) | 找到循环数组里对应数字比他大的下一个数字                 | 严格单调递增栈 + 遍历两次               |
+| 7    | [556. Next Greater Element III](https://leetcode.cn/problems/next-greater-element-iii/) | 将一个数字变成比他大的最小的数字，且每位上的数字个数相同 | 模拟单调栈                              |
+| 8    | [402. Remove K Digits](https://leetcode.cn/problems/remove-k-digits/) | 删掉 K 个数字后的最小数字                                | 单调栈                                  |
+| 9    | [853. Car Fleet](https://leetcode.cn/problems/car-fleet/)    | 不同车速的车是否能组成车队                               | 按出发先后排序 + 单调栈                 |
+| 10   | [739. Daily Temperatures](https://leetcode.cn/problems/daily-temperatures/) | 几天后会比今天更温暖                                     | 单调栈                                  |
+
+| 题                    | 题                        | 题            | 题              |
+| --------------------- | ------------------------- | ------------- | --------------- |
+| Basic Calculator 系列 | Nested List Iterator 系列 | Decode String | Number of Atoms |
+|                       |                           |               |                 |
+|                       |                           |               |                 |
+
+
+
+## 堆（Heap）
+
+- 一般也就用到**大顶堆**和**小顶堆**，顶堆的定义是递归进行的，其父节点的权值**不小于**/**不大于**其子节点，下面将以**大顶堆**为例来介绍顶堆的基本操作。
+
+#### 大顶堆
+
+- **底层实现**：数组（切片！但是我就是乐意叫他数组！）
+
+- **哨兵**：
+
+  - 设定数组下标为 `0` 的元素为场景中最大元；
+
+  - 由于使用数组，最好是节点下标从 `1` 开始，而非 `0` ，这对于二叉树的向下扩展很有利，因为对于任意节点 `i` ，其父节点为 `i/2` ，其左右孩子，如果存在，分别为 `i*2` 和 `i*2+1`。
+
+    ```go
+    heap := []int{math.MaxInt}
+    size := 0
+    ```
+
+- **插入**：
+
+  1. 将新的元素加入数组尾部，然后**向上调整**：若当前节点权值大于父节点，则交换，否则结束；
+
+     ![二叉堆的插入操作](./images/binary_heap_insert.svg)
+
+     ```go
+     func insert(val int) {
+         heap = append(heap, val)
+         size++
+         for i := size; heap[i/2] < heap[i]; i /= 2 {
+             heap[i/2], heap[i] = heap[i], heap[i/2]
+         }
+     }
+     ```
+
+- **删除**：
+
+  1. 返回堆顶元素，即下标为 `1` 的元素，然后把数组尾的元素与其交换，然后**向下调整**；
+
+  2. **向下调整**：在该结点的儿子中，找一个最大的，与该结点交换，重复此过程直到底层。
+
+     ```go
+     func delete() (res int) {
+         res = heap[1]
+         heap[1] = heap[size]
+         size--
+         for i := 1; (i*2 <= size && heap[i] < heap[i*2]) || (i*2+1 <= size && heap[i] < heap[i*2+1]); {
+             if i*2+1 > size || heap[i*2] > heap[i*2+1] {
+                 heap[i], heap[i*2] = heap[i*2], heap[i]
+                 i = i * 2
+             } else {
+                 heap[i], heap[i*2+1] = heap[i*2+1], heap[i]
+                 i = i*2 + 1
+             }
+         }
+         return
+     }
+     ```
+
+- **更新**：
+
+  1. 类似于**插入**和**删除**操作，按规则**向上/向下调整**。
+
+#### Golang Heap
+
+- 本质上是要实现 `heap.Interface{}` 这个接口，这个接口又要实现 `sort.Interface{}` 接口...😅
+
+```go
+type Heap []int
+
+func (h Heap) Len() int { return len(h) }
+
+func (h Heap) Less(i, j int) bool { return h[i] < h[j] }
+
+func (h Heap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
+
+func (h *Heap) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
+}
+
+func (h *Heap) Push(val interface{}) {
+	*h = append(*h, val.(int))
+}
+```
+
+```go
+h := &Heap{}
+heap.Init(h)
+for _, num := range nums {
+    heap.Push(h, num)
+    if h.Len() > k {
+        heap.Pop(h)
+    }
+}
+return heap.Pop(h).(int)
+```
+
+
+
+#### 经典堆问题
+
+- **TopK问题**：求第 `K` 小值维护最大大小为 `K` 的大顶堆，比堆顶元素大忽略，否则弹出堆顶然后插入该元素，直到结束；（`ID-1` `ID-2`）
+
+- **中位数问题**：求中位数（[295. Find Median from Data Stream](https://leetcode.cn/problems/find-median-from-data-stream/) `ID-3`），维护一个大顶堆和一个小顶堆，大顶堆里存小值而小顶堆存大值，维护两个堆使得大顶堆内的数据等于小顶堆或者正好等于小顶堆内数据加一。
+
+  > [4. Median of Two Sorted Arrays](https://leetcode.cn/problems/median-of-two-sorted-arrays/) 也可以用中位数问题的思想过，虽然正确的题解不是那样的...🤔
+
+- **CPU问题**：维护一个空资源堆，维护一个运行堆，运行堆为到期时间的小顶堆。（[1834. Single-Threaded CPU](https://leetcode.cn/problems/single-threaded-cpu/)，虽然这题 [1882. Process Tasks Using Servers](https://leetcode.cn/problems/process-tasks-using-servers/) 没调出来，实在想不到哪里有错了...😭）
+
+#### 堆的例题
+
+| ID   | LeetCode 题号                                                | 描述            | 思路            |
+| ---- | ------------------------------------------------------------ | --------------- | --------------- |
+| 1    | [215. Kth Largest Element in an Array](https://leetcode.cn/problems/kth-largest-element-in-an-array/) | 第K大值         | 大小为K的小顶堆 |
+| 2    | [347. Top K Frequent Elements](https://leetcode.cn/problems/top-k-frequent-elements/) | 第K常见的值     | 大小为K的小顶堆 |
+| 3    | [295. Find Median from Data Stream](https://leetcode.cn/problems/find-median-from-data-stream/) | 中位数          | 双堆维护        |
+| 4    | [4. Median of Two Sorted Arrays](https://leetcode.cn/problems/median-of-two-sorted-arrays/) | 中位数          | 双堆维护        |
+| 5    | [1882. Process Tasks Using Servers](https://leetcode.cn/problems/process-tasks-using-servers/) | Server-Task调度 | 双堆            |
+| 6    | [1834. Single-Threaded CPU](https://leetcode.cn/problems/single-threaded-cpu/) | CPU调度         | 堆              |
+
+| 题                    | 题   | 题   | 题   |
+| --------------------- | ---- | ---- | ---- |
+| 253. Meeting Rooms II |      |      |      |
+
+
+
+## 队列（Queue）
+
+
+队 Queue, Deque
+BFS related
+239 Sliding Window Maximum  ---> 2D sliding window maximum ( 转化成两次1D的问题）
+Moving Average from Data Stream
+
+1. 链表 LinkedList
   Fast and Slow pointer  (detect cycle, get middle,  get kth element)
   141 Linked List Cycle
   19 Remove Nth Node From End of List
@@ -901,7 +1465,7 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
   LRU cache
   Deep copy  (138 Copy List with Random Pointer)
   Merge LinkedList  (2. Add Two Numbers)
-4. 排序 Sort
+2. 排序 Sort
   Merge sort
   非常规高频题 315 Count of Smaller Numbers After Self  --> (google题： 一堆点, 对每个点(x,y)数【严格大 (x,y)<(u,v)】的点的个数. 思路：先排序，x增序，y减序，然后把y单独拿出来看，对每个点数右边有多少大的元素，变成问题315 with bigger numbers after self)
   Quick Sort --> QuickSelect O(n) time on average) 973. K Closest Points to Origin
@@ -910,7 +1474,7 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
   Python built-in sort
   OrderedDict (linked list + hash) --> 自己实现： 用 hashtable 存double linkedlist 的 node
   sorted containers (sorted list, sorted dict, sorted set)
-5. 搜索和查询 Search and Query
+3. 搜索和查询 Search and Query
   hash (python: dictionary, set):
   O(1)查找，
   记录unique element的frequency
@@ -925,7 +1489,7 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
   经典题 Search a 2D Matrix 系列
   字典树 Trie 模板 （单词相关的查找）： 642. Design Search Autocomplete System， 472. Concatenated Words， 212. Word Search II
   Range Query (Segment Tree 模板)  307. Range Sum Query - Mutable. check 1point3acres for more.
-6. 数组和字符串相关 （array & string）
+4. 数组和字符串相关 （array & string）
   括号相关题 （另外见【栈】）921. Minimum Add to Make Parentheses Valid， 1249. Minimum Remove to Make Valid Parentheses
   排列（组合） Permutation
   区间题 Intervals [left, right, val]
@@ -969,10 +1533,3 @@ Binary Search Tree 判断和快速查找元素 98. Validate Binary Search Tree
   最近转码上岸了，总结了一下我做过的一些有代表的力扣题，回馈地里，希望对大家有帮助！
   另外还有一篇【转码找工作的资料总结】还在审核中
   链接： https://www.1point3acres.com/bbs/thread-840857-1-1.html
-  .1point3acres
-  补充内容 (2022-01-21 02:13 +8:00):. From 1point 3acres bbs
-  转码资料的帖子通过审核啦！
-  Dynamic programming 那儿格式出了点问题，应该是 dp 和 dp[j] 这两种最常见的方式 . .и
-  补充内容 (2022-01-21 03:51 +8:00):
-  还是有问题。。。。
-  是 dp_i   和 dp_i,j
