@@ -113,14 +113,16 @@ return heap.Pop(h).(int)
 
 #### 堆的例题
 
-| ID   | LeetCode 题号                                                | 描述            | 思路            |
-| ---- | ------------------------------------------------------------ | --------------- | --------------- |
-| 1    | [215. Kth Largest Element in an Array](https://leetcode.cn/problems/kth-largest-element-in-an-array/) | 第K大值         | 大小为K的小顶堆 |
-| 2    | [347. Top K Frequent Elements](https://leetcode.cn/problems/top-k-frequent-elements/) | 第K常见的值     | 大小为K的小顶堆 |
-| 3    | [295. Find Median from Data Stream](https://leetcode.cn/problems/find-median-from-data-stream/) | 中位数          | 双堆维护        |
-| 4    | [4. Median of Two Sorted Arrays](https://leetcode.cn/problems/median-of-two-sorted-arrays/) | 中位数          | 双堆维护        |
-| 5    | [1882. Process Tasks Using Servers](https://leetcode.cn/problems/process-tasks-using-servers/) | Server-Task调度 | 双堆            |
-| 6    | [1834. Single-Threaded CPU](https://leetcode.cn/problems/single-threaded-cpu/) | CPU调度         | 堆              |
+| ID   | LeetCode 题号                                                | 描述               | 思路                                     |
+| ---- | ------------------------------------------------------------ | ------------------ | ---------------------------------------- |
+| 1    | [215. Kth Largest Element in an Array](https://leetcode.cn/problems/kth-largest-element-in-an-array/) | 第K大值            | 大小为K的小顶堆                          |
+| 2    | [347. Top K Frequent Elements](https://leetcode.cn/problems/top-k-frequent-elements/) | 第K常见的值        | 大小为K的小顶堆                          |
+| 3    | [295. Find Median from Data Stream](https://leetcode.cn/problems/find-median-from-data-stream/) | 中位数             | 双堆维护                                 |
+| 4    | [4. Median of Two Sorted Arrays](https://leetcode.cn/problems/median-of-two-sorted-arrays/) | 中位数             | 双堆维护                                 |
+| 5    | [1882. Process Tasks Using Servers](https://leetcode.cn/problems/process-tasks-using-servers/) | Server-Task调度    | 双堆                                     |
+| 6    | [1834. Single-Threaded CPU](https://leetcode.cn/problems/single-threaded-cpu/) | CPU调度            | 堆                                       |
+| 7    | [239. Sliding Window Maximum](https://leetcode.cn/problems/sliding-window-maximum/) | 滑动窗口中的最大值 | 单调双端队列 **或者** 大顶堆（延迟更新） |
+| 8    | [480. Sliding Window Median](https://leetcode.cn/problems/sliding-window-median/) | 滑动窗口中的中位数 | 双顶堆                                   |
 
 | 题                    | 题   | 题   | 题   |
 | --------------------- | ---- | ---- | ---- |

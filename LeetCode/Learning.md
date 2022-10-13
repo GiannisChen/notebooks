@@ -33,44 +33,7 @@ binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做B
 
 
 
-队 Queue, Deque
-BFS related
-239 Sliding Window Maximum  ---> 2D sliding window maximum ( 转化成两次1D的问题）
-Moving Average from Data Stream
-
-1. 链表 LinkedList
-  Fast and Slow pointer  (detect cycle, get middle,  get kth element)
-  141 Linked List Cycle
-  19 Remove Nth Node From End of List
-  Reverse Linked List (trick: dummy head)  206 Reverse Linked List, 25 Reverse Nodes in k-Group
-  LRU cache
-  Deep copy  (138 Copy List with Random Pointer)
-  Merge LinkedList  (2. Add Two Numbers)
-2. 排序 Sort
-  Merge sort
-  非常规高频题 315 Count of Smaller Numbers After Self  --> (google题： 一堆点, 对每个点(x,y)数【严格大 (x,y)<(u,v)】的点的个数. 思路：先排序，x增序，y减序，然后把y单独拿出来看，对每个点数右边有多少大的元素，变成问题315 with bigger numbers after self)
-  Quick Sort --> QuickSelect O(n) time on average) 973. K Closest Points to Origin
-  Bucket Sort O(n) 通常是整体数据量可能很大，但是unique元素有限
-  Cycle Sort O(n) 通常是用于把0到n-1在array中排序 （不断交换的想法）
-  Python built-in sort
-  OrderedDict (linked list + hash) --> 自己实现： 用 hashtable 存double linkedlist 的 node
-  sorted containers (sorted list, sorted dict, sorted set)
-3. 搜索和查询 Search and Query
-  hash (python: dictionary, set):
-  O(1)查找，
-  记录unique element的frequency
-  binary search  左开右闭模板
-  data是有顺序的，每次可以缩小搜索范围。 经典题：
-  33 Search in Rotated Sorted Array，
-  153 Find Minimum in Rotated Sorted Array，
-  162 Find Peak Element. check 1point3acres for more.
-  解的范围是一个区间可以二分搜索
-  Binary search + greedy: 1231 Divide Chocolate, 1011 Capacity To Ship Packages Within D Days, 410. Split Array Largest Sum
-  378 Kth Smallest Element in a Sorted Matrix
-  经典题 Search a 2D Matrix 系列
-  字典树 Trie 模板 （单词相关的查找）： 642. Design Search Autocomplete System， 472. Concatenated Words， 212. Word Search II
-  Range Query (Segment Tree 模板)  307. Range Sum Query - Mutable. check 1point3acres for more.
-4. 数组和字符串相关 （array & string）
+1. 数组和字符串相关 （array & string）
   括号相关题 （另外见【栈】）921. Minimum Add to Make Parentheses Valid， 1249. Minimum Remove to Make Valid Parentheses
   排列（组合） Permutation
   区间题 Intervals [left, right, val]

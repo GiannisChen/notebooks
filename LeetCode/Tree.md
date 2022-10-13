@@ -123,8 +123,6 @@
 | 题                                        | 题                             | 题                         | 题                                       |
 | ----------------------------------------- | ------------------------------ | -------------------------- | ---------------------------------------- |
 | 314. Binary Tree Vertical Order Traversal | 366 Find Leaves of Binary Tree | Lowest Common Ancestor系列 | 428 Serialize and Deserialize N-ary Tree |
-|                                           |                                |                            |                                          |
-|                                           |                                |                            |                                          |
 
 
 
@@ -144,7 +142,7 @@
 
 
 
-##### 已有数组→线段树
+##### 已有数组→线段树（离散化树状数组）
 
 - 当给定一个数组时，我们需要在这个基础上“长”出一颗线段树：（**自底向上**）
 
@@ -346,6 +344,7 @@
 | 4    | [732. My Calendar III](https://leetcode.cn/problems/my-calendar-iii/) | 日程预定列表（计算最大重复度） | `LeetCode`不会解释例子可以不解释嗷，万能模板：线段树 + 懒惰标记 |
 | 5    | [2407. Longest Increasing Subsequence II](https://leetcode.cn/problems/longest-increasing-subsequence-ii/) | 最长递增子序列，但是有间隔限制 | 动态开树的线段树优化找的过程，原本还有一维DP的，结果发现不需要，**我是傻逼** |
 | 6    | [715. Range Module](https://leetcode.cn/problems/range-module/) | 范围查询                       | 线段树                                                       |
+| 7    | [315. Count of Smaller Numbers After Self](https://leetcode.cn/problems/count-of-smaller-numbers-after-self/) | 判断后序数列中有几个比当前数少 | 离散化树状数组 + 相对顺序排序（压缩，不然会吃 `超时`         |
 
 | 题              | 题              | 题                  |
 | --------------- | --------------- | ------------------- |
