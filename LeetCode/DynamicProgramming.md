@@ -428,6 +428,7 @@
 | 4    | [664. Strange Printer](https://leetcode.cn/problems/strange-printer/) | 覆盖打印，求最小打印次数 | 区间DP，$dp[i][j] = \begin{cases} dp[i][j-1] & s[i]=s[j] \\ \max_{i \leq k \leq j-1}(dp[i][j],dp[i][k]+dp[k+1][j]) & s[i] \ne s[j] \end{cases}$ |
 | 5    | [801. Minimum Swaps To Make Sequences Increasing](https://leetcode.cn/problems/minimum-swaps-to-make-sequences-increasing/) | 两个数组对应位置进行交换 | DP，滚动数组                                                 |
 | 6    | [LCP 69. Hello LeetCode!](https://leetcode.cn/problems/rMeRt2/) | 字典中取字符，代价最小   | DP + 状态压缩 + DP + DFS                                     |
+| 7    | [940. Distinct Subsequences II](https://leetcode.cn/problems/distinct-subsequences-ii/) | 不同的子序列数           | $dp[i]=\sum_{j='a'}^{'z'}dp[j] \qquad 'a'\leq i \leq 'z'$    |
 
 
 
