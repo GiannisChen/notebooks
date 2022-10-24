@@ -463,3 +463,10 @@ func DFS(g graph, n, m int) {
 | 3    | [1091. Shortest Path in Binary Matrix](https://leetcode.cn/problems/shortest-path-in-binary-matrix/) | 迷宫最短路                   | `BFS` + 层数记录                                             |
 | 4    | [1293. Shortest Path in a Grid with Obstacles Elimination](https://leetcode.cn/problems/shortest-path-in-a-grid-with-obstacles-elimination/) | 能够拆墙的迷宫游戏           | `BFS` + 记录是否走过时候记录走到这一步拆墙用过几次，次数高的就不再走了 |
 | 5    | [1631. Path With Minimum Effort](https://leetcode.cn/problems/path-with-minimum-effort/) | 找到目的地的最小体力消耗路径 | `Dijkstra` + 不同的更新规则                                  |
+
+binarysearch+BFS： 用binary search 查找答案，然后在限制条件下做BFS。类似的用binary search 查找答案的思路见【7. 搜索和查询 中的binary search部分】
+1102 Path With Maximum Minimum Value
+778  Swim in Rising Water
+1631 Path With Minimum Effort 
+
+回溯法 Backtracking 本质就是想象成图，然后递归的DFS（有时可以剪枝)  526. Beautiful Arrangement, 22. Generate Parentheses

@@ -415,20 +415,101 @@
     $$
 
   - 那么有了通用答案数组，接下来就是统计答案。统计答案可以选择记忆化搜索，也可以选择循环迭代递推。为了不重不漏地统计所有不超过上限的答案，要从高到低枚举每一位，再考虑每一位都可以填哪些数字，最后利用通用答案数组统计答案。
+  
+- **例题**：（[902. Numbers At Most N Given Digit Set](https://leetcode.cn/problems/numbers-at-most-n-given-digit-set/)，给定非零数字最多能组成多少个不超过 `N` 的数字）
+
+  甚至可以不用显式 DP ，我们可以假装有个“0维” DP ，**主要思想**是由于不能超过 `N` ，那么选取正好小于 `N` 的数剩下部分就任选了；如果正好等于 `N` 的该数位，则看向下一个数位。找正好小于等于可以用**二分查找**简化，需要注意开头是可以为 `0` 的但是这次数字里不提供 `0` ，由此带来的问题是，当 `N` 只有一位时该方法会多计算一个数值 `0` ，需要额外去掉。
+
+  ```go
+  func atMostNGivenDigitSet(digits []string, n int) int {
+  	ints := make([]int, 0)
+  	for i, digit := range digits {
+  		d, _ := strconv.Atoi(digit)
+  		if i == 0 || ints[len(ints)-1] != d {
+  			ints = append(ints, d)
+  		}
+  	}
+  
+  	base := int(1e9)
+  	isFirst := true
+  
+  	ans := 0
+  	for base > 0 {
+  		if n/base == 0 {
+  			base /= 10
+  			continue
+  		} else {
+  			d := (n / base) % 10
+  			i := sort.SearchInts(ints, d)
+  			if isFirst {
+  				ans += f(base/10, len(ints))
+  			}
+  			ans += i * f2(base/10, len(ints))
+  
+  			if i == len(ints) || ints[i] != d {
+  				break
+  			} else {
+  				if base == 1 {
+  					ans++
+  				}
+  				isFirst = false
+  				base /= 10
+  			}
+  		}
+  	}
+  
+  	if n < 10 {
+  		ans--
+  	}
+  	return ans
+  }
+  
+  func f(base, num int) (res int) {
+  	item := 1
+  	if base == 0 {
+  		return 1
+  	}
+  	for base > 0 {
+  		item *= num
+  		res += item
+  		base /= 10
+  	}
+  	return
+  }
+  
+  func f2(base, num int) int {
+  	item := 1
+  	if base == 0 {
+  		return 1
+  	}
+  	for base > 0 {
+  		item *= num
+  		base /= 10
+  	}
+  	return item
+  }
+  ```
+
+  
 
 
 
 #### 动态规划例题
 
-| ID   | LeetCode 题号                                                | 描述                     | 思路                                                         |
-| ---- | ------------------------------------------------------------ | ------------------------ | ------------------------------------------------------------ |
-| 1    | [300. Longest Increasing Subsequence](https://leetcode.cn/problems/longest-increasing-subsequence/) | 最长递增子序列           | 一维 DP，$f[i+1]=\underset{0 \leq j \leq i}{max}\{f[j]\}$    |
-| 2    | [1143. Longest Common Subsequence](https://leetcode.cn/problems/longest-common-subsequence/) | 最长公共子序列           | 二维 DP，$f[i+1][j+1] = \begin{cases} f[i][j] & str1[i]=str2[j] \\max(f[i+1][j],f[i][j+1]) & str1[i] \ne str2[j] \end{cases}$ |
-| 3    | [LCP 64. 二叉树灯饰](https://leetcode.cn/problems/U7WvvU/)   | 二叉灯树开关问题         | 树形DP，通过存储状态来减少搜索过程，即**记忆化搜索**         |
-| 4    | [664. Strange Printer](https://leetcode.cn/problems/strange-printer/) | 覆盖打印，求最小打印次数 | 区间DP，$dp[i][j] = \begin{cases} dp[i][j-1] & s[i]=s[j] \\ \max_{i \leq k \leq j-1}(dp[i][j],dp[i][k]+dp[k+1][j]) & s[i] \ne s[j] \end{cases}$ |
-| 5    | [801. Minimum Swaps To Make Sequences Increasing](https://leetcode.cn/problems/minimum-swaps-to-make-sequences-increasing/) | 两个数组对应位置进行交换 | DP，滚动数组                                                 |
-| 6    | [LCP 69. Hello LeetCode!](https://leetcode.cn/problems/rMeRt2/) | 字典中取字符，代价最小   | DP + 状态压缩 + DP + DFS                                     |
-| 7    | [940. Distinct Subsequences II](https://leetcode.cn/problems/distinct-subsequences-ii/) | 不同的子序列数           | $dp[i]=\sum_{j='a'}^{'z'}dp[j] \qquad 'a'\leq i \leq 'z'$    |
+| ID   | LeetCode 题号                                                | 描述                                          | 思路                                                         |
+| ---- | ------------------------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------ |
+| 1    | [300. Longest Increasing Subsequence](https://leetcode.cn/problems/longest-increasing-subsequence/) | 最长递增子序列                                | 一维 DP，$f[i+1]=\underset{0 \leq j \leq i}{max}\{f[j]\}$    |
+| 2    | [1143. Longest Common Subsequence](https://leetcode.cn/problems/longest-common-subsequence/) | 最长公共子序列                                | 二维 DP，$f[i+1][j+1] = \begin{cases} f[i][j] & str1[i]=str2[j] \\max(f[i+1][j],f[i][j+1]) & str1[i] \ne str2[j] \end{cases}$ |
+| 3    | [LCP 64. 二叉树灯饰](https://leetcode.cn/problems/U7WvvU/)   | 二叉灯树开关问题                              | 树形DP，通过存储状态来减少搜索过程，即**记忆化搜索**         |
+| 4    | [664. Strange Printer](https://leetcode.cn/problems/strange-printer/) | 覆盖打印，求最小打印次数                      | 区间DP，$dp[i][j] = \begin{cases} dp[i][j-1] & s[i]=s[j] \\ \max_{i \leq k \leq j-1}(dp[i][j],dp[i][k]+dp[k+1][j]) & s[i] \ne s[j] \end{cases}$ |
+| 5    | [801. Minimum Swaps To Make Sequences Increasing](https://leetcode.cn/problems/minimum-swaps-to-make-sequences-increasing/) | 两个数组对应位置进行交换                      | DP，滚动数组                                                 |
+| 6    | [LCP 69. Hello LeetCode!](https://leetcode.cn/problems/rMeRt2/) | 字典中取字符，代价最小                        | DP + 状态压缩 + DP + DFS                                     |
+| 7    | [940. Distinct Subsequences II](https://leetcode.cn/problems/distinct-subsequences-ii/) | 不同的子序列数                                | $dp[i]=\sum_{j='a'}^{'z'}dp[j] \qquad 'a'\leq i \leq 'z'$    |
+| 8    | [1235. Maximum Profit in Job Scheduling](https://leetcode.cn/problems/maximum-profit-in-job-scheduling/) | 可以参加的工作的最多薪资                      | 以结束时间排序，结束时间相同时以经历时间最长为后，DP + 二分查找，注意二分查找的坑，因为结束时间有重复，需要找到最后一个... |
+| 9    | [2008. Maximum Earnings From Taxi](https://leetcode.cn/problems/maximum-earnings-from-taxi/) | 赚钱最多的接乘客的方案                        | 同上一题的思路                                               |
+| 10   | [1751. Maximum Number of Events That Can Be Attended II](https://leetcode.cn/problems/maximum-number-of-events-that-can-be-attended-ii/) | 在限制数量的情况下可以参加的会议的最高价值    | 同上题思路，不过增加一维来记录少于等于限制数量时，所能达到的最大价值 |
+| 11   | [2054. Two Best Non-Overlapping Events](https://leetcode.cn/problems/two-best-non-overlapping-events/) | 在限制数量的情况下可以参加的会议的最高价值    | 同上题，不过限制数量固定在 $2$ ，所以基本上 `CV` 就行        |
+| 12   | [902. Numbers At Most N Given Digit Set](https://leetcode.cn/problems/numbers-at-most-n-given-digit-set/) | 给定非零数字最多能组成多少个不超过 `N` 的数字 | 标准数位 DP + 二分查找                                       |
 
 
 
