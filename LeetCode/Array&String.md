@@ -113,6 +113,33 @@
 
 
 
+#### 分治
+
+- 类似于**归并排序**的做法：
+
+  ![190.001.jpeg](images/1616982968-vXsJSf-190.001.jpeg)
+
+- **例题** [190. Reverse Bits](https://leetcode.cn/problems/reverse-bits/)
+
+  ```go
+  const (
+      m1 = 0x55555555 // 01010101010101010101010101010101
+      m2 = 0x33333333 // 00110011001100110011001100110011
+      m4 = 0x0f0f0f0f // 00001111000011110000111100001111
+      m8 = 0x00ff00ff // 00000000111111110000000011111111
+  )
+  
+  func reverseBits(n uint32) uint32 {
+      n = n>>1&m1 | n&m1<<1
+      n = n>>2&m2 | n&m2<<2
+      n = n>>4&m4 | n&m4<<4
+      n = n>>8&m8 | n&m8<<8
+      return n>>16 | n<<16
+  }
+  ```
+
+
+
 #### 数组和字符串的例题
 
 | ID   | LeetCode 题号                                                | 描述                                   | 思路                       |
@@ -126,6 +153,7 @@
 | 7    | [75. Sort Colors](https://leetcode.cn/problems/sort-colors/) | 三元素原地排序                         | 双指针                     |
 | 8    | [680. Valid Palindrome II](https://leetcode.cn/problems/valid-palindrome-ii/) | 删除至多一个字符是否成回文串           | 双指针                     |
 | 9    | [76. Minimum Window Substring](https://leetcode.cn/problems/minimum-window-substring/) | 满足要求的最小子串                     | 双指针滑动窗口             |
+| 10   | [190. Reverse Bits](https://leetcode.cn/problems/reverse-bits/) | 二进制倒置                             | 分治 或 遍历               |
 
 | 题                                                           | 题                                  | 题                              | 题                             |
 | ------------------------------------------------------------ | ----------------------------------- | ------------------------------- | ------------------------------ |

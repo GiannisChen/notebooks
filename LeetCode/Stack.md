@@ -20,6 +20,7 @@
 | 8    | [402. Remove K Digits](https://leetcode.cn/problems/remove-k-digits/) | 删掉 K 个数字后的最小数字                                | 单调栈                                  |
 | 9    | [853. Car Fleet](https://leetcode.cn/problems/car-fleet/)    | 不同车速的车是否能组成车队                               | 按出发先后排序 + 单调栈                 |
 | 10   | [739. Daily Temperatures](https://leetcode.cn/problems/daily-temperatures/) | 几天后会比今天更温暖                                     | 单调栈                                  |
+| 11   | [907. Sum of Subarray Minimums](https://leetcode.cn/problems/sum-of-subarray-minimums/) | 子数组的最小值之和                                       | 单调栈 + 双向遍历                       |
 
 | 题                    | 题                        | 题            | 题              |
 | --------------------- | ------------------------- | ------------- | --------------- |

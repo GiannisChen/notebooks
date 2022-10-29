@@ -63,4 +63,17 @@ Implementing the `fmt::Display` trait automatically implements the [`ToString`](
 3. [`derive`](https://doc.rust-lang.org/stable/rust-by-example/trait/derive.html), [`std::fmt`](https://doc.rust-lang.org/std/fmt/), [`macros`](https://doc.rust-lang.org/stable/rust-by-example/macros.html), [`struct`](https://doc.rust-lang.org/stable/rust-by-example/custom_types/structs.html), [`trait`](https://doc.rust-lang.org/std/fmt/#formatting-traits), and [`use`](https://doc.rust-lang.org/stable/rust-by-example/mod/use.html)
 4. [`for`](https://doc.rust-lang.org/stable/rust-by-example/flow_control/for.html), [`ref`](https://doc.rust-lang.org/stable/rust-by-example/scope/borrow/ref.html), [`Result`](https://doc.rust-lang.org/stable/rust-by-example/std/result.html), [`struct`](https://doc.rust-lang.org/stable/rust-by-example/custom_types/structs.html), [`?`](https://doc.rust-lang.org/stable/rust-by-example/std/result/question_mark.html), and [`vec!`](https://doc.rust-lang.org/stable/rust-by-example/std/vec.html)
 5. [The `const`/`static` RFC](https://github.com/rust-lang/rfcs/blob/master/text/0246-const-vs-static.md), [`'static` lifetime](https://doc.rust-lang.org/stable/rust-by-example/scope/lifetime/static_lifetime.html)
-6. 
+6. [`#[allow(...)\]`](https://doc.rust-lang.org/stable/rust-by-example/attribute/unused.html), [color models](https://en.wikipedia.org/wiki/Color_model) and [`enum`](https://doc.rust-lang.org/stable/rust-by-example/custom_types/enum.html)
+7. 
+
+
+
+# [Testing](https://doc.rust-lang.org/stable/rust-by-example/cargo/test.html#testing)
+
+As we know testing is integral to any piece of software! Rust has first-class support for unit and integration testing ([see this chapter](https://doc.rust-lang.org/book/ch11-00-testing.html) in TRPL).
+
+From the testing chapters linked above, we see how to write unit tests and integration tests. Organizationally, we can place unit tests in the modules they test and integration tests in their own `tests/` directory:
+
+```txt
+foo
+```

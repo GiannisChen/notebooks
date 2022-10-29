@@ -123,3 +123,156 @@ $$
 #### 其他
 
 - **见**：https://oi-wiki.org/math/combinatorics/combination/#%E7%BB%84%E5%90%88%E6%95%B0%E6%80%A7%E8%B4%A8--%E4%BA%8C%E9%A1%B9%E5%BC%8F%E6%8E%A8%E8%AE%BA
+
+
+
+#### 例题
+
+- 思路来源：https://leetcode.cn/problems/count-the-number-of-ideal-arrays/solution/shu-lun-zu-he-shu-xue-zuo-fa-by-endlessc-iouh/；
+- 以题 [2338. Count the Number of Ideal Arrays](https://leetcode.cn/problems/count-the-number-of-ideal-arrays/) 为例，讲一下组合数学的妙用（`Rating 2615` ，高低给他磕一个...）
+
+##### 朴素的开始
+
+> - You are given two integers `n` and `maxValue`, which are used to describe an **ideal array**.
+>
+>
+> - A **0-indexed** integer array `arr` of length `n` is considered **ideal** if the following conditions hold:
+>
+>   - Every `arr[i]` is a value from `1` to `maxValue`, for `0 <= i < n`.
+>
+>   - Every `arr[i]` is **divisible** by `arr[i - 1]`, for `0 < i < n`.
+>
+> - Return the number of distinct **ideal arrays** of length `n`. Since the answer may be very large, return it modulo `109 + 7`.
+
+1. 首先看到这道题目，上来就是一个 `DP` ，然后不出意外就超时了。`DP` 的思路很直白，我确定了每一个 **ideal array** 的最后一个元素 `arr[maxValue]` ，那么，其子数组 `arr[1:maxValue]` 也是一个 **ideal array**，并且其末尾元素能整除 `arr[maxValue]`，这就有递推方程：
+   $$
+   dp[i] = dp[i] + \sum_{j=1}^{i}dp[j] \qquad\qquad j \; mod \; i 
+   $$
+   会超时。但是中间一个思路是可以延续下来的，那就是固定了最后一个元素，其向前递归的过程就是可控的。
+
+2. 自然而然会想到，既然遍历耗时，那我能不能找规律用**数学方法**呢？先找规律，对于 `arr` 结尾为 `4` ，我们可以写出如下数组：（不妨假设 `n == 4`）
+
+   ```python
+   [1,1,1,4]	[2,2,4,4]
+   [1,1,2,4]	[2,4,4,4]
+   [1,2,2,4]	[4,4,4,4]
+   [2,2,2,4]	...
+   ```
+
+   有趣的是，这是一个单调数组，而且很像前缀和的表达： `arr[i] = arr[i-1] * j` 。那么，我们可以用类似差分数组的方式搞一个乘法版的差分数组，`[1,2,2,4]` 👉 `[1,2,1,2]`，显然，包括了 `1` 作为初始化值，所有数字的乘积必然是 `4` ，换做其他数字也是一样的结果。那么，我们就只需要考虑数字 `4` 的因子分散到哪个地方了。
+
+3. 不失一般性，有 `n` 个空盒子可以填入相应的因子，可以是多个，也可以不填入。自然而然想到了经典的**空盒子填球的问题**，但是还有一个问题，数字有多个因子如何处理。比如数字 `12` ，能被拆分成： `[12,6,4,3,2,1]` ，不太好考虑；差分数组中以 `1` 为基本单位，那么，我们自然想到**整除中**的最小单位：**质因子**。那么， `12` 就拆成了： `[2,2,3]`。
+
+4. 这似乎是一个**多重集**的问题，但是我们发现，质因子之间由于**互质**的特性，选取并不影响彼此，只有相同因子之间需要考虑重复的影响。所以，`k` 个相同的质因子，放入 `n` 个空盒子，允许为空，**插板法**！先借 `n` 个数字，考虑至少放置 `1` 个，即 `k+n-1` 个空格中插入 `n-1` 块板子，结果就是 ${k+n-1 \choose n-1} = {k+n-1 \choose k}$。
+
+5. 就差一步了，我们只要计算上述那个公式求和就行了，那么这个公式如何求呢，考虑 $n \choose k$ ，能不能用递推呢，答案是可以的，考虑到第 `n` 位，有两种情况，在此处选择 `k` 中的一个，那么剩下的情况总数就是 $n-1 \choose k-1$，同理，如果不选，就是 $n-1 \choose k$，所以有以下公式：
+   $$
+   {n \choose k} = {n-1 \choose k-1} + {n-1 \choose k}
+   $$
+
+6. 动手写下第一版的代码：
+
+   ```go
+   func idealArrays(n int, maxValue int) int {
+   	ans := 0
+   	for i := 1; i <= maxValue; i++ {
+   		j := 2
+   		tmp := i
+   		a := 1
+   		for tmp > 1 {
+   			count := 0
+   			for tmp%j == 0 {
+   				count++
+   				tmp /= j
+   			}
+   			if count > 0 {
+   				a = (a * choose(count+n-1, count)) % (1e9 + 7)
+   			}
+   			j++
+   		}
+   		ans = (ans + a) % (1e9 + 7)
+   	}
+   	return ans
+   }
+   ```
+
+   ```go
+   func choose(n, k int) int {
+   	if k >= n {
+   		return 1
+   	}
+   	if k == 0 {
+   		return 1
+   	}
+   	return (choose(n-1, k-1) + choose(n-1, k)) % (1e9 + 7)
+   }
+   ```
+
+7. 但是，还是超时了，显然是在**计算组合数时**。由于是递推问题，显然可以使用 `DP` 进行优化和复用：
+   $$
+   c[n][k] = c[n-1][k-1] + c[n-1][k]
+   $$
+
+   ```go
+   const (
+   	mod  = 1e9 + 7
+   	maxC = 13
+   	maxV = 1e4 + 1
+   )
+   
+   var c [maxV + maxC][maxC + 1]int
+   
+   func init() {
+   	for i := range c {
+   		c[i][0] = 1
+   	}
+   
+   	for j := 1; j <= maxC; j++ {
+   		for i := 1; i < len(c); i++ {
+   			if j >= i {
+   				c[i][j] = 1
+   			}
+   			c[i][j] = (c[i-1][j-1] + c[i-1][j]) % mod
+   		}
+   	}
+   }
+   ```
+
+8. 最后的代码：
+
+   ```go
+   func idealArrays(n int, maxValue int) int {
+   	ans := 0
+   	for i := 1; i <= maxValue; i++ {
+   		j := 2
+   		tmp := i
+   		a := 1
+   		for tmp > 1 {
+   			count := 0
+   			for tmp%j == 0 {
+   				count++
+   				tmp /= j
+   			}
+   			if count > 0 {
+   				a = (a * c[count+n-1][count]) % mod
+   			}
+   			j++
+   		}
+   		ans = (ans + a) % mod
+   	}
+   	return ans
+   }
+   ```
+
+9. 终于搞定！
+
+
+
+#### 排列组合例题
+
+| ID   | LeetCode 题号                                                | 描述           | 思路          |
+| ---- | ------------------------------------------------------------ | -------------- | ------------- |
+| 1    | [2338. Count the Number of Ideal Arrays](https://leetcode.cn/problems/count-the-number-of-ideal-arrays/) | 理想数组的总数 | DP + 组合数学 |
+|      |                                                              |                |               |
+|      |                                                              |                |               |
+
