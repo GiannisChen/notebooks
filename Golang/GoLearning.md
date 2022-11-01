@@ -65,7 +65,7 @@
   // a == [0,0,0,0]
   ```
 
-  ![img](slice-array.png)
+  ![img](./Images/slice-array.png)
 
 - 数组在作为参数传递时，不是将数组变量看作为一个指向数组的指针，这是C语言中的做法，而是看作一个整体，这就意味着当传递参数时，会引起复制机制。如果需要规避这种复制，通用的做法是传递指向数组的指针；
 
@@ -138,11 +138,11 @@
 
 - 切片是数组段的描述符。它由指向数组的指针、段的长度和它的容量（段的最大长度）组成：
 
-  ![img](slice-struct.png)
+  ![img](./Images/slice-struct.png)
 
 - 假设变量`s`，使用`make([]byte, 5)`初始化，那么切片就是这样的：
 
-  ![img](slice-1.png)
+  ![img](./Images/slice-1.png)
 
 - `len`是切片所引用的元素的数量，`cap`是底层数组中的元素数量（从切片指针引用的元素开始）：
 
@@ -150,7 +150,7 @@
   s = s[2:4]
   ```
 
-  ![img](slice-2.png)
+  ![img](./Images/slice-2.png)
 
 - 切片并不复制切片的数据，它创建一个指向原始数组的新片值，这使得切片操作与操作数组索引一样有效。因此，修改重切片的元素（而不是切片本身）会修改原始切片的元素：
 
@@ -167,7 +167,7 @@
   s := s[:cap(s)]
   ```
 
-  ![img](slice-3.png)
+  ![img](./Images/slice-3.png)
 
 - 切片不能超出其容量，因为尝试超过容量的切片行为将导致运行时产生`panic`，就像在数组越界一样。类似的，切片不能在0以下重新切片，以访问数组中更早的元素。
 
@@ -645,7 +645,7 @@ func main() {
 
 ##### 	接口到反射对象
 
-![golang-interface-to-reflection](golang-interface-to-reflection.png)
+![golang-interface-to-reflection](./Images/golang-interface-to-reflection.png)
 
 ```go
 package main
@@ -669,7 +669,7 @@ func main() {
 
 ##### 反射对象到接口
 
-![golang-reflection-to-interface](golang-reflection-to-interface.png)
+![golang-reflection-to-interface](./Images/golang-reflection-to-interface.png)
 
 不过调用 [`reflect.Value.Interface`](https://draveness.me/golang/tree/reflect.Value.Interface) 方法只能获得 `interface{}` 类型的变量，如果想要将其还原成最原始的状态还需要经过如下所示的显式类型转换：
 
@@ -955,7 +955,7 @@ func main() {
 }
 ```
 
-![golang-panic-and-defers](2020-01-19-15794253176199-golang-panic-and-defers.png)
+![golang-panic-and-defers](./Images/2020-01-19-15794253176199-golang-panic-and-defers.png)
 
 - 如果添加了子进程的`recover()`，那么子进程并不会`panic`掉主进程，相反，主进程得以继续执行，这与上面的代码不同。
 
@@ -1001,7 +1001,7 @@ hash := make(map[int]bool, 10)
 ch := make(chan int, 5)
 ```
 
-![golang-make-and-new](golang-make-and-new.png)
+![golang-make-and-new](./Images/golang-make-and-new.png)
 
 ---
 
@@ -1028,11 +1028,11 @@ type Context interface {
 
 - 在一段代码中，我们会创建多个`goroutine`来处理一次请求（例如在HTTP/RPC），而 `context.Context`的作用是在不同 `goroutine`之间同步请求特定数据、取消信号以及处理请求的截止日期。
 
-![golang-context-usage](golang-context-usage.png)
+![golang-context-usage](./Images/golang-context-usage.png)
 
-![golang-without-context](golang-without-context.png)
+![golang-without-context](./Images/golang-without-context.png)
 
-![golang-with-context](golang-with-context.png)
+![golang-with-context](./Images/golang-with-context.png)
 
 - 从源代码来看，`context.Background`和 context.TODO`也只是互为别名，没有太大的差别，只是在使用和语义上稍有不同：
 
@@ -1041,7 +1041,7 @@ type Context interface {
 
   在多数情况下，如果当前函数没有上下文作为入参，我们都会使用 `context.Background`作为起始的上下文向下传递。
 
-  ![golang-context-hierarchy](golang-context-hierarchy.png)
+  ![golang-context-hierarchy](./Images/golang-context-hierarchy.png)
 
 - 其他创建`goroutine`的方法，各有不同的功能
 
@@ -1125,7 +1125,7 @@ type Context interface {
 
 - 在`sync`包里提供了基本原语
 
-![golang-basic-sync-primitives](2020-01-23-15797104327981-golang-basic-sync-primitives.png)
+![golang-basic-sync-primitives](./Images/2020-01-23-15797104327981-golang-basic-sync-primitives.png)
 
 ##### `sync.Mutex`
 
@@ -1140,13 +1140,13 @@ type Context interface {
 
   - `state`表示互斥锁的状态，由以下四个部分组成
 
-    ![golang-mutex-state](2020-01-23-15797104328010-golang-mutex-state.png)
+    ![golang-mutex-state](./Images/2020-01-23-15797104328010-golang-mutex-state.png)
 
     - `waitersCount`
 
     - `mutexStarving`
 
-      ![golang-mutex-mode](2020-01-23-15797104328020-golang-mutex-mode.png)
+      ![golang-mutex-mode](./Images/2020-01-23-15797104328020-golang-mutex-mode.png)
 
       区分正常模式和饥饿模式，新唤醒的`goroutine`容易进入饥饿的状态，所以只要`goroutine`等待超过1ms，**饥饿模式将被唤醒**，此时，新进来的`goroutine`将不会获得锁；当等待队列末尾的`goroutine`获得了资源，或者等待时间小于1ms，则**切换为正常模式**。
 
@@ -1203,7 +1203,7 @@ for _, request := range requests {
 wg.wait()
 ```
 
-![golang-syncgroup](2020-01-23-15797104328028-golang-syncgroup.png)
+![golang-syncgroup](./Images/2020-01-23-15797104328028-golang-syncgroup.png)
 
 ```go
 type WaitGroup struct {
@@ -1218,7 +1218,7 @@ type WaitGroup struct {
 
 - `state1` — 存储着状态和信号量；
 
-  ![golang-waitgroup-state](2020-01-23-15797104328035-golang-waitgroup-state.png)
+  ![golang-waitgroup-state](./Images/2020-01-23-15797104328035-golang-waitgroup-state.png)
 
 - `wg.Add`更新`state1`里的`counter`字段，计数器应该是非负的，因此只要计数器为负数则引发`panic`；
 - `wg.Done`等于`wg.Add(-1)`；
@@ -1251,7 +1251,7 @@ type Once struct {
 
     - 在`sync.notifyList`结构体中，`head` 和 `tail` 分别指向的链表的头和尾，`wait` 和 `notify` 分别表示当前正在等待的和已经通知到的 Goroutine 的索引。
 
-      ![golang-cond-notifylist](2020-01-23-15797104328049-golang-cond-notifylist.png)
+      ![golang-cond-notifylist](./Images/2020-01-23-15797104328049-golang-cond-notifylist.png)
 
 ```go
 type Cond struct {
@@ -1267,7 +1267,7 @@ type Cond struct {
 
 #### 扩展原语
 
-![golang-extension-sync-primitives](2020-01-23-15797104328056-golang-extension-sync-primitives.png)
+![golang-extension-sync-primitives](./Images/2020-01-23-15797104328056-golang-extension-sync-primitives.png)
 
 ##### `errgroup.Group`
 
@@ -1363,7 +1363,7 @@ type Weighted struct {
 }
 ```
 
-![golang-semaphore](2020-01-23-15797104328063-golang-semaphore.png)
+![golang-semaphore](./Images/2020-01-23-15797104328063-golang-semaphore.png)
 
 - `semaphore.NewWeighted`初始化信号量
 
@@ -1509,7 +1509,7 @@ var timers struct {
 }
 ```
 
-![golang-timer-quadtree](2020-01-25-15799218054781-golang-timer-quadtree.png)
+![golang-timer-quadtree](./Images/2020-01-25-15799218054781-golang-timer-quadtree.png)
 
 ##### 分片四叉堆（Go 1.10~Go 1.13）
 
@@ -1536,7 +1536,7 @@ type timersBucket struct {
 }
 ```
 
-![golang-timer-bucket](2020-01-25-15799218054791-golang-timer-bucket.png)
+![golang-timer-bucket](./Images/2020-01-25-15799218054791-golang-timer-bucket.png)
 
 ##### 网络轮询器（after Go 1.14)
 
@@ -1547,7 +1547,7 @@ type timersBucket struct {
   - `adjustTimers` — 处理器中处于 `timerModifiedEarlier` 状态的计时器数量；
   - `deletedTimers` — 处理器中处于 `timerDeleted` 状态的计时器数量；
 
-![golang-p-and-timers](2020-01-25-15799218054798-golang-p-and-timers.png)
+![golang-p-and-timers](./Images/2020-01-25-15799218054798-golang-p-and-timers.png)
 
 ```go
 type p struct {
@@ -1670,15 +1670,15 @@ loop:
 - 线程（协程）之间需要通信，传统的做法是使用共享内存进行通信，但是共享内存涉及线程（协程）竞争，加减锁的过程也有很大消耗；
 - Go使用了了通信顺序进程（Communicating Sequential Processes，CSP），`goroutine`是CSP中的实体，`channel`是传递信息的媒介，`channel`通信依循FIFO的策略；
 
-![channel-and-goroutines](2020-01-28-15802171487080-channel-and-goroutines.png)
+![channel-and-goroutines](./Images/2020-01-28-15802171487080-channel-and-goroutines.png)
 
 - `channel`不带缓冲区
 
-![channel-direct-send](2020-01-29-15802354027250-channel-direct-send.png)
+![channel-direct-send](./Images/2020-01-29-15802354027250-channel-direct-send.png)
 
 - `channel`带缓冲区
 
-![channel-buffer-send](2020-01-28-15802171487104-channel-buffer-send.png)
+![channel-buffer-send](./Images/2020-01-28-15802171487104-channel-buffer-send.png)
 
 ---
 
@@ -1688,7 +1688,7 @@ loop:
 
 - Go语言为了减少哪怕是线程切换的开销，实现了所谓协程的`goroutine`来降低操作系统的负担；
 
-![goroutines-on-thread](2020-02-05-15808864354586-goroutines-on-thread.png)
+![goroutines-on-thread](./Images/2020-02-05-15808864354586-goroutines-on-thread.png)
 
 - GMP模型是Go语言经典的调度器
   - `G` → 表示`goroutine`，是一个等待执行的任务；
@@ -1771,7 +1771,7 @@ type gobuf struct {
 | `_Gpreempted` | 由于抢占而被阻塞，没有执行用户代码并且不在运行队列上，等待唤醒 |
 | `_Gscan`      | GC 正在扫描栈空间，没有执行代码，可以与其他状态同时存在      |
 
-![golang-goroutine-state-transition](2020-02-05-15808864354615-golang-goroutine-state-transition.png)
+![golang-goroutine-state-transition](./Images/2020-02-05-15808864354615-golang-goroutine-state-transition.png)
 
 - 等待中：Goroutine 正在等待某些条件满足，例如：系统调用结束等，包括 `_Gwaiting`、`_Gsyscall` 和 `_Gpreempted` 几个状态；
 - 可运行：Goroutine 已经准备就绪，可以在线程运行，如果当前程序中有非常多的 Goroutine，每个 Goroutine 就可能会等待更多的时间，即 `_Grunnable`；
@@ -1783,7 +1783,7 @@ type gobuf struct {
 
 - Go语言的操作系统级线程，由调度器创建，但是未必全部运行用户的代码，因为有Go语言自己的调度器，最多只有`GOMAXPROCS`个活跃线程能够正常运行；在大多数情况下，我们都会使用 Go 的默认设置，也就是线程数等于 CPU 数，默认的设置不会频繁触发操作系统的线程调度和上下文切换，所有的调度都会发生在用户态，由 Go 语言调度器触发，能够减少很多额外开销。
 
-![scheduler-m-and-thread](2020-02-05-15808864354634-scheduler-m-and-thread.png)
+![scheduler-m-and-thread](./Images/2020-02-05-15808864354634-scheduler-m-and-thread.png)
 
 ###### `runtime.m`
 
@@ -1796,7 +1796,7 @@ type m struct {
 }
 ```
 
-![g0-and-g](2020-02-05-15808864354644-g0-and-g.png)
+![g0-and-g](./Images/2020-02-05-15808864354644-g0-and-g.png)
 
 ```go
 type m struct {
@@ -1846,7 +1846,7 @@ type p struct {
 
 - 有三种方法能够获得新的`goroutine`资源，分为两大类共三种方法；
 
-![golang-newproc-get-goroutine](golang-newproc-get-goroutine.png)
+![golang-newproc-get-goroutine](./Images/golang-newproc-get-goroutine.png)
 
 1. `runtime.gfget`中包含两部分逻辑，它会根据处理器中 `gFree` 列表中 `goroutine` 的数量做出不同的决策：
 
@@ -1860,7 +1860,7 @@ type p struct {
 
 - Go语言存在两种队列，一个是全局的运行队列，由调度器持有，而处理器本地也维护了一个运行队列，只有在本地运行队列没有剩余空间时才会使用全局队列；
 
-![golang-runnable-queue](2020-02-05-15808864354654-golang-runnable-queue.png)
+![golang-runnable-queue](./Images/2020-02-05-15808864354654-golang-runnable-queue.png)
 
 
 
