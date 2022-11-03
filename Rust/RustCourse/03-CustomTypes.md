@@ -912,3 +912,558 @@ fn main() {
 
 
 
+#### 方法 Method
+
+- **定义** —— **Rust** 使用 `impl` 来定义方法，例如以下代码：
+
+  ```rust
+  struct Circle {
+      x: f64,
+      y: f64,
+      radius: f64,
+  }
+  
+  impl Circle {
+      // new是Circle的关联函数，因为它的第一个参数不是self，且new并不是关键字
+      // 这种方法往往用于初始化当前结构体的实例
+      fn new(x: f64, y: f64, radius: f64) -> Circle {
+          Circle {
+              x: x,
+              y: y,
+              radius: radius,
+          }
+      }
+  
+      // Circle的方法，&self表示借用当前的Circle结构体
+      fn area(&self) -> f64 {
+          std::f64::consts::PI * (self.radius * self.radius)
+      }
+  }
+  ```
+
+  `impl Circle {}` 表示为 `Circle` 实现方法（`impl` 是 **implementation** 的缩写），这样的写法表明 `impl` 语句块中的一切都是跟 `Circle` 相关联的。
+
+- 下面的图片将 **Rust** 方法定义与其它语言的方法定义做了对比：
+
+  <img src="../Images/struct_method_impl.png" alt="img" style="zoom: 80%;" />
+
+  可以看出，其它语言中所有定义都在 `class` 中，但是 **Rust** 的对象定义和方法定义是分离的，这种数据和使用分离的方式，会给予使用者极高的灵活度。
+
+##### Self  、 self 、 &self 和 &mut self
+
+- 在 `area` 的签名中，我们使用 `&self` 替代 `circle: &Circle`，`&self` 其实是 `self: &Self` 的简写（注意大小写），在一个 `impl` 块内：
+  - `Self` 指代被实现方法的结构体类型；
+  - `self` 指代此结构体类型的实例，所有权转移到该方法中；
+  - `&self` 表示该方法对此结构体类型的实例的不可变借用；
+  - `&mut self` 表示可变借用；
+
+> - 不用在函数签名中重复书写 `self` 对应的类型；
+> - 代码的组织性和内聚性更强，对于代码维护和阅读来说，好处巨大；
+
+##### 方法名跟结构体字段名相同
+
+- 在 **Rust** 中，允许方法名跟结构体的字段名相同：
+
+  ```rust
+  impl Rectangle {
+      fn width(&self) -> bool {
+          self.width > 0
+      }
+  }
+  
+  fn main() {
+      let rect1 = Rectangle {
+          width: 30,
+          height: 50,
+      };
+  
+      if rect1.width() {
+          println!("The rectangle has a nonzero width; it is {}", rect1.width);
+      }
+  }
+  ```
+
+  当我们使用 `rect1.width()` 时，Rust 知道我们调用的是它的方法，如果使用 `rect1.width`，则是访问它的字段。
+
+- 一般来说，方法跟字段同名，往往适用于实现 `getter` 访问器，例如:
+
+  ```rust
+  pub struct Rectangle {
+      width: u32,
+      height: u32,
+  }
+  
+  impl Rectangle {
+      pub fn new(width: u32, height: u32) -> Self {
+          Rectangle { width, height }
+      }
+      pub fn width(&self) -> u32 {
+          return self.width;
+      }
+  }
+  
+  fn main() {
+      let rect1 = Rectangle::new(30, 50);
+  
+      println!("{}", rect1.width());
+  }
+  ```
+
+  用这种方式，我们可以把 `Rectangle` 的字段设置为私有属性，只需把它的 `new` 和 `width` 方法设置为公开可见，那么用户就可以创建一个矩形，同时通过访问器 `rect1.width()` 方法来获取矩形的宽度，因为 `width` 字段是私有的，当用户访问 `rect1.width` 字段时，就会报错。注意在此例中，`Self` 指代的就是被实现方法的结构体 `Rectangle`。
+
+> **`->` 运算符到哪去了？**
+>
+> - 在 C/C++ 语言中，有两个不同的运算符来调用方法：`.` 直接在对象上调用方法，而 `->` 在一个对象的指针上调用方法，这时需要先解引用指针。换句话说，如果 `object` 是一个指针，那么 `object->something()` 和 `(*object).something()` 是一样的。
+>
+> - **Rust** 并没有一个与 `->` 等效的运算符；相反，**Rust** 有一个叫 **自动引用和解引用**的功能。方法调用是 **Rust** 中少数几个拥有这种行为的地方。
+>
+>   他是这样工作的：当使用 `object.something()` 调用方法时，**Rust** 会自动为 `object` 添加 `&`、`&mut` 或 `*` 以便使 `object` 与方法签名匹配。也就是说，这些代码是等价的：
+>
+>   ```rust
+>   p1.distance(&p2);
+>   (&p1).distance(&p2);
+>   ```
+>
+>   第一行看起来简洁的多。这种自动引用的行为之所以有效，是因为方法有一个明确的接收者 —— `self` 的类型。在给出接收者和方法名的前提下，**Rust** 可以明确地计算出方法是仅仅读取（`&self`），做出修改（`&mut self`）或者是获取所有权（`self`）。事实上，**Rust** 对方法接收者的隐式借用让所有权在实践中更友好。
+
+##### 关联函数
+
+- 现在大家可以思考一个问题，如何为一个结构体定义一个构造器方法？也就是接受几个参数，然后构造并返回该结构体的实例。其实答案在开头的代码片段中就给出了，很简单，参数中不包含 `self` 即可。
+
+  这种定义在 `impl` 中且没有 `self` 的函数被称之为**关联函数**： 因为它没有 `self`，不能用 `f.read()` 的形式调用，因此它是一个函数而不是方法，它又在 `impl` 中，与结构体紧密关联，因此称为关联函数。
+
+  在之前的代码中，我们已经多次使用过关联函数，例如 `String::from`，用于创建一个动态字符串。
+
+  ```rust
+  impl Rectangle {
+      fn new(w: u32, h: u32) -> Rectangle {
+          Rectangle { width: w, height: h }
+      }
+  }
+  ```
+
+  因为是函数，所以不能用 `.` 的方式来调用，我们需要用 `::` 来调用，例如 `let sq = Rectangle::new(3, 3);`。这个方法位于结构体的命名空间中：`::` 语法用于关联函数和模块创建的命名空间。
+
+> **Rust** 中有一个约定俗成的规则，使用 `new` 来作为构造器的名称，出于设计上的考虑，**Rust** 特地没有用 `new` 作为关键字
+
+##### 支持多个 impl
+
+- **Rust** 允许我们为一个结构体定义多个 `impl` 块，目的是提供更多的灵活性和代码组织性，例如当方法多了后，可以把相关的方法组织在同一个 `impl` 块中，那么就可以形成多个 `impl` 块，各自完成一块儿目标：
+
+  ```rust
+  impl Rectangle {
+      fn area(&self) -> u32 {
+          self.width * self.height
+      }
+  }
+  
+  impl Rectangle {
+      fn can_hold(&self, other: &Rectangle) -> bool {
+          self.width > other.width && self.height > other.height
+      }
+  }
+  ```
+
+
+
+### 枚举
+
+- 枚举（**enum** 或 **enumeration**）允许你通过列举可能的成员来定义一个**枚举类型**，例如扑克牌花色：
+
+  ```rust
+  enum PokerSuit {
+    Clubs,
+    Spades,
+    Diamonds,
+    Hearts,
+  }
+  ```
+
+  再回到之前创建的 `PokerSuit`，扑克总共有四种花色，而这里我们枚举出所有的可能值，这也正是 **枚举** 名称的由来。 **枚举类型是一个类型，它会包含所有可能的枚举成员，而枚举值是该类型中的具体某个成员的实例。**`PokerSuit` 就是一个**枚举类型**，而**枚举值**可以是 `Clubs` 、`Spades` 、`Diamonds` 、 `Hearts` 。
+
+  任何一张扑克，它的花色肯定会落在四种花色中，而且也只会落在其中一个花色上，这种特性非常适合枚举的使用，因为**枚举值**只可能是其中某一个成员。抽象来看，四种花色尽管是不同的花色，但是它们都是扑克花色这个概念，因此当某个函数处理扑克花色时，可以把它们当作相同的类型进行传参。
+
+
+
+#### 枚举值
+
+- 现在来创建 `PokerSuit` 枚举类型的两个成员实例：
+
+  ```rust
+  let heart = PokerSuit::Hearts;
+  let diamond = PokerSuit::Diamonds;
+  ```
+
+  我们通过 `::` 操作符来访问 `PokerSuit` 下的具体成员，从代码可以清晰看出，`heart` 和 `diamond` 都是 `PokerSuit` 枚举类型的，接着可以定义一个函数来使用它们：
+
+  ```rust
+  fn main() {
+      let heart = PokerSuit::Hearts;
+      let diamond = PokerSuit::Diamonds;
+  
+      print_suit(heart);
+      print_suit(diamond);
+  }
+  
+  fn print_suit(card: PokerSuit) {
+      println!("{:?}",card);
+  }
+  ```
+
+  `print_suit` 函数的参数类型是 `PokerSuit`，因此我们可以把 `heart` 和 `diamond` 传给它，虽然 `heart` 是基于 `PokerSuit` 下的 `Hearts` 成员实例化的，但是它是货真价实的 `PokerSuit` 枚举类型。
+
+  接下来，我们想让扑克牌变得更加实用，那么需要给每张牌赋予一个值：`A`(1)-`K`(13)，这样再加上花色，就是一张真实的扑克牌了，例如红心 A。先用结构体来实现：
+
+  ```rust
+  enum PokerSuit {
+      Clubs,
+      Spades,
+      Diamonds,
+      Hearts,
+  }
+  
+  struct PokerCard {
+      suit: PokerSuit,
+      value: u8
+  }
+  
+  fn main() {
+     let c1 = PokerCard {
+         suit: PokerSuit::Clubs,
+         value: 1,
+     };
+     let c2 = PokerCard {
+         suit: PokerSuit::Diamonds,
+         value: 12,
+     };
+  }
+  ```
+
+  这段代码很好的完成了它的使命，通过结构体 `PokerCard` 来代表一张牌，结构体的 `suit` 字段表示牌的花色，类型是 `PokerSuit` 枚举类型，`value` 字段代表扑克牌的数值。但是不够简洁，不仅如此，同一个枚举类型下的不同成员还能持有不同的数据类型，例如让某些花色打印 `1-13` 的字样，另外的花色打印上 `A-K` 的字样：
+
+  ```rust
+  enum PokerCard {
+      Clubs(u8),
+      Spades(u8),
+      Diamonds(char),
+      Hearts(char),
+  }
+  
+  fn main() {
+     let c1 = PokerCard::Spades(5);
+     let c2 = PokerCard::Diamonds('A');
+  }
+  ```
+
+- 再来看一个来自标准库中的例子：
+
+  ```rust
+  struct Ipv4Addr { /* --snip-- */ }
+  struct Ipv6Addr { /* --snip-- */ }
+  enum IpAddr {
+      V4(Ipv4Addr),
+      V6(Ipv6Addr),
+  }
+  ```
+
+  这个例子跟我们之前的扑克牌很像，只不过枚举成员包含的类型更复杂了，变成了结构体：分别通过 `Ipv4Addr` 和 `Ipv6Addr` 来定义两种不同的 IP 数据。从这些例子可以看出，**任何类型的数据都可以放入枚举成员中**：例如字符串、数值、结构体甚至另一个枚举。
+
+- 增加一些挑战？先看以下代码：
+
+  ```rust
+  enum Message {
+      Quit,
+      Move { x: i32, y: i32 },
+      Write(String),
+      ChangeColor(i32, i32, i32),
+  }
+  
+  fn main() {
+      let m1 = Message::Quit;
+      let m2 = Message::Move{x:1,y:1};
+      let m3 = Message::ChangeColor(255,255,0);
+  }
+  ```
+
+  该枚举类型代表一条消息，它包含四个不同的成员：
+
+  - `Quit` 没有任何关联数据；
+  - `Move` 包含一个匿名结构体；
+  - `Write` 包含一个 `String` 字符串；
+  - `ChangeColor` 包含三个 `i32` ；
+
+  当然，我们也可以用结构体的方式来定义这些消息：
+
+  ```rust
+  struct QuitMessage; // 单元结构体
+  struct MoveMessage { x: i32, y: i32, }
+  struct WriteMessage(String); // 元组结构体
+  struct ChangeColorMessage(i32, i32, i32); // 元组结构体
+  ```
+
+  由于每个结构体都有自己的类型，因此我们无法在需要同一类型的地方进行使用，例如某个函数它的功能是接受消息并进行发送，那么用枚举的方式，就可以接收不同的消息，但是用结构体，该函数无法接受 4 个不同的结构体作为参数。
+
+  而且从代码规范角度来看，枚举的实现更简洁，代码内聚性更强，不像结构体的实现，分散在各个地方。
+
+
+
+#### 同一化类型
+
+- 最后，再用一个实际项目中的简化片段，来结束枚举类型的语法学习。例如我们有一个 **WEB** 服务，需要接受用户的长连接，假设连接有两种：`TcpStream` 和 `TlsStream`，但是我们希望对这两个连接的处理流程相同，也就是用同一个函数来处理这两个连接，代码如下：
+
+  ```rust
+  fn new (stream: TcpStream) {
+    let mut s = stream;
+    if tls {
+      s = negotiate_tls(stream)
+    }
+  
+    // websocket是一个WebSocket<TcpStream>或者
+    //   WebSocket<native_tls::TlsStream<TcpStream>>类型
+    websocket = WebSocket::from_raw_socket(
+      stream, ......)
+  }
+  ```
+
+  此时，枚举类型就能帮上大忙：
+
+  ```rust
+  enum Websocket {
+    Tcp(Websocket<TcpStream>),
+    Tls(Websocket<native_tls::TlsStream<TcpStream>>),
+  }
+  ```
+
+
+
+#### Option 枚举用于处理空值
+
+- 在其它编程语言中，往往都有一个 `null` 关键字，该关键字用于表明一个变量当前的值为空（不是零值，例如整型的零值是 0），也就是不存在值。当你对这些 `null` 进行操作时，例如调用一个方法，就会直接抛出**null 异常**，导致程序的崩溃，因此我们在编程时需要格外的小心去处理这些 `null` 空值。
+
+  尽管如此，空值的表达依然非常有意义，因为空值表示当前时刻变量的值是缺失的。有鉴于此，**Rust** 吸取了众多教训，决定抛弃 `null`，而改为使用 `Option` 枚举变量来表述这种结果。
+
+  `Option` 枚举包含两个成员，一个成员表示含有值：`Some(T)` ，另一个表示没有值：`None` ，定义如下：
+
+  ```rust
+  enum Option<T> { Some(T), None, }
+  ```
+
+  其中 `T` 是泛型参数，`Some(T)`表示该枚举成员的数据类型是 `T`，换句话说，`Some` 可以包含任何类型的数据。
+
+  `Option<T>` **枚举**是如此有用以至于它被包含在了 [prelude](https://course.rs/appendix/prelude.html)（prelude 属于 Rust 标准库，Rust 会将最常用的类型、函数等提前引入其中，省得我们再手动引入）之中，你不需要将其显式引入作用域。另外，它的成员 `Some` 和 `None` 也是如此，无需使用 `Option::` 前缀就可直接使用 `Some` 和 `None`。总之，不能因为 `Some(T)` 和 `None` 中没有 `Option::` 的身影，就否认它们是 `Option` 下的卧龙凤雏。
+
+- 再来看以下代码：
+
+  ```rust
+  let some_number = Some(5);
+  let some_string = Some("a string");
+  let absent_number: Option<i32> = None;
+  ```
+
+  如果使用 `None` 而不是 `Some`，需要告诉 **Rust** `Option<T>` 是什么类型的，因为编译器只通过 `None` 值无法推断出 `Some` 成员保存的值的类型。
+
+  当有一个 `Some` 值时，我们就知道存在一个值，而这个值保存在 `Some` 中。当有个 `None` 值时，在某种意义上，它跟空值具有相同的意义：并没有一个有效的值。那么，`Option<T>` 为什么就比空值要好呢？
+
+  简而言之，因为 `Option<T>` 和 `T`（这里 `T` 可以是任何类型）是不同的类型，例如，这段代码不能编译，因为它尝试将 `Option<i8>`（`Option<T>`） 与 `i8`（`T`） 相加：
+
+  ```rust
+  let x: i8 = 5;
+  let y: Option<i8> = Some(5);
+  let sum = x + y;
+  ```
+
+  如果运行这些代码，将得到类似这样的错误信息：
+
+  ```shell
+  error[E0277]: the trait bound `i8: std::ops::Add<std::option::Option<i8>>` is
+  not satisfied
+   -->
+    |
+  5 |     let sum = x + y;
+    |                 ^ no implementation for `i8 + std::option::Option<i8>`
+    |
+  ```
+
+  很好！事实上，错误信息意味着 Rust 不知道该如何将 `Option<i8>` 与 `i8` 相加，因为它们的类型不同。当在 **Rust** 中拥有一个像 `i8` 这样类型的值时，编译器确保它总是有一个有效的值，我们可以放心使用而无需做空值检查。只有当使用 `Option<i8>`（或者任何用到的类型）的时候才需要担心可能没有值，而编译器会确保我们在使用值之前处理了为空的情况。
+
+- 换句话说，在对 `Option<T>` 进行 `T` 的运算之前必须将其转换为 `T`。通常这能帮助我们捕获到空值最常见的问题之一：期望某值不为空但实际上为空的情况。
+
+  不再担心会错误的使用一个空值，会让你对代码更加有信心。为了拥有一个可能为空的值，你必须要显式的将其放入对应类型的 `Option<T>` 中。接着，当使用这个值时，必须明确的处理值为空的情况。只要一个值不是 `Option<T>` 类型，你就 **可以** 安全的认定它的值不为空。这是 **Rust** 的一个经过深思熟虑的设计决策，来限制空值的泛滥以增加 **Rust** 代码的安全性。
+
+  那么当有一个 `Option<T>` 的值时，如何从 `Some` 成员中取出 `T` 的值来使用它呢？`Option<T>` 枚举拥有大量用于各种情况的方法：你可以查看[它的文档](https://doc.rust-lang.org/std/option/enum.Option.html)。熟悉 `Option<T>` 的方法将对你的 **Rust** 之旅非常有用。
+
+  总的来说，为了使用 `Option<T>` 值，需要编写处理每个成员的代码。你想要一些代码只当拥有 `Some(T)` 值时运行，允许这些代码使用其中的 `T`。也希望一些代码在值为 `None` 时运行，这些代码并没有一个可用的 `T` 值。`match` 表达式就是这么一个处理枚举的控制流结构：它会根据枚举的成员运行不同的代码，这些代码可以使用匹配到的值中的数据。
+
+  这里先简单看一下 `match` 的大致模样，在[模式匹配](https://course.rs/basic/match-pattern/intro.html)中，我们会详细讲解：
+
+  ```rust
+  fn plus_one(x: Option<i32>) -> Option<i32> {
+      match x {
+          None => None,
+          Some(i) => Some(i + 1),
+      }
+  }
+  
+  let five = Some(5);
+  let six = plus_one(five);
+  let none = plus_one(None);
+  ```
+
+  `plus_one` 通过 `match` 来处理不同 `Option` 的情况。（不过我能写出朴素的**模式匹配**的函数了😀）
+
+  ```rust
+  fn main() {
+      for i in 0..5 {
+          match test_option(i) {
+              None => println!("output: None"),
+              Some(res) => println!("output: {}", res),
+          }
+      }
+  }
+  
+  fn test_option(input: i32) -> Option<i32> {
+      if input > 2 {
+          return Some(input / 2);
+      } else {
+          return None;
+      }
+  }
+  ```
+
+#### 枚举类型的方法
+
+- 枚举类型之所以强大，不仅仅在于它好用、可以[同一化类型](#同一化类型)，还在于，我们可以像结构体一样，为枚举实现方法：
+
+  ```rust
+  #![allow(unused)]
+  enum Message {
+      Quit,
+      Move { x: i32, y: i32 },
+      Write(String),
+      ChangeColor(i32, i32, i32),
+  }
+  
+  impl Message {
+      fn call(&self) {
+          // 在这里定义方法体
+      }
+  }
+  
+  fn main() {
+      let m = Message::Write(String::from("hello"));
+      m.call();
+  }
+  ```
+
+
+
+### 数组
+
+- 在日常开发中，使用最广的数据结构之一就是数组，在 **Rust** 中，最常用的数组有两种，第一种是速度很快但是长度固定的 `array`，第二种是可动态增长的但是有性能损耗的 `Vector`，在本书中，我们称 `array` 为**数组**，`Vector` 为**动态数组**。
+
+  不知道你们发现没，这两个数组的关系跟 `&str` 与 `String` 的关系很像，前者是长度固定的字符串切片，后者是可动态增长的字符串。其实，在 **Rust** 中无论是 `String` 还是 `Vector`，它们都是 **Rust** 的高级类型：集合类型，在后面章节会有详细介绍。
+
+- 对于本章节，我们的重点还是放在数组 `array` 上。数组的具体定义很简单：将多个类型相同的元素依次组合在一起，就是一个数组。结合上面的内容，可以得出数组的**三要素**：
+
+  1. 长度固定；
+  2. 元素必须有相同的类型；
+  3. 依次线性排列；
+
+##### 创建数组
+
+- 定义数组：
+
+  ```rust
+  fn main() {
+      let a: [i64; 4] = [1, 2, 3, 4];
+      println!("{:?}", a);
+  }
+  ```
+
+  数组语法跟 **JavaScript** 很像，也跟大多数编程语言很像。由于它的元素类型大小固定，且长度也是固定，因此**数组 `array` 是存储在栈上**，性能也会非常优秀。与此对应，**动态数组 `Vector` 是存储在堆上**，因此长度可以动态改变。当你不确定是使用数组还是动态数组时，那就应该使用后者，具体见[动态数组 Vector](https://course.rs/basic/collections/vector.html)。
+
+- 举个例子，在需要知道一年中各个月份名称的程序中，你很可能希望使用的是数组而不是动态数组。因为月份是固定的，它总是只包含 12 个元素：
+
+  ```rust
+  let months = ["January", "February", "March", "April", "May", "June", "July",
+                "August", "September", "October", "November", "December"];
+  ```
+
+  在一些时候，还需要为**数组声明类型**，如下所示：
+
+  ```rust
+  let a: [i32; 5] = [1, 2, 3, 4, 5];
+  ```
+
+  这里，数组类型是通过方括号语法声明，`i32` 是元素类型，分号后面的数字 `5` 是数组长度，数组类型也从侧面说明了**数组的元素类型要统一，长度要固定**。
+
+- 还可以使用下面的语法初始化一个**某个值重复出现 N 次的数组**：
+
+  ```rust
+  let a = [3; 5];
+  ```
+
+  `a` 数组包含 `5` 个元素，这些元素的初始化值为 `3`，聪明的读者已经发现，这种语法跟数组类型的声明语法其实是保持一致的：`[3; 5]` 和 `[type; length]`。
+
+##### 访问数组元素
+
+- 因为数组是连续存放元素的，因此可以通过索引的方式来访问存放其中的元素：
+
+  ```rust
+  fn main() {
+      let a = [9, 8, 7, 6, 5];
+      let first = a[0]; // 获取a数组第一个元素
+      let second = a[1]; // 获取第二个元素
+  }
+  ```
+
+  与许多语言类似，数组的索引下标是从 0 开始的。此处，`first` 获取到的值是 `9`，`second` 是 `8`。
+
+- **访问越界**
+
+  如果使用超出数组范围的索引访问数组元素，会怎么样？下面是一个接收用户的控制台输入，然后将其作为索引访问数组元素的例子：
+
+  ```rust
+  use std::io;
+  
+  fn main() {
+      let a = [1, 2, 3, 4, 5];
+  
+      println!("Please enter an array index.");
+  
+      let mut index = String::new();
+      // 读取控制台的输出
+      io::stdin()
+          .read_line(&mut index)
+          .expect("Failed to read line");
+  
+      let index: usize = index
+          .trim()
+          .parse()
+          .expect("Index entered was not a number");
+  
+      let element = a[index];
+  
+      println!(
+          "The value of the element at index {} is: {}",
+          index, element
+      );
+  }
+  ```
+
+  使用 `cargo run` 来运行代码，因为数组只有 5 个元素，如果我们试图输入 `5` 去访问第 6 个元素，则会访问到不存在的数组元素，最终程序会崩溃退出：
+
+  ```shell
+  Please enter an array index.
+  5
+  thread 'main' panicked at 'index out of bounds: the len is 5 but the index is 5', src/main.rs:19:19
+  note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+  ```
+
+  这就是数组访问越界，访问了数组中不存在的元素，导致 **Rust** 运行时错误。程序因此退出并显示错误消息，未执行最后的 `println!` 语句。
+
+  当你尝试使用索引访问元素时，**Rust** 将检查你指定的索引是否小于数组长度。如果索引大于或等于数组长度，**Rust** 会出现 ***panic\***。这种检查只能在运行时进行，比如在上面这种情况下，编译器无法在编译期知道用户运行代码时将输入什么值。
+
+> - **数组类型容易跟数组切片混淆**， `[T;n]` 描述了一个数组的类型，而 `[T]` 描述了切片的类型， 因为切片是运行期的数据结构，它的长度无法在编译期得知，因此不能用 `[T;n]` 的形式去描述；
+> - `[u8;3]`和`[u8;4]`是不同的类型，数组的长度也是类型的一部分；
+> - **在实际开发中，使用最多的是数组切片** `[T]` ，我们往往通过引用的方式去使用 `&[T]` ，因为后者有固定的类型大小；
