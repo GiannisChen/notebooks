@@ -27,9 +27,9 @@
 
 #### 数学的例题
 
-| ID   | LeetCode 题号                                                | 描述                           | 思路                     |
-| ---- | ------------------------------------------------------------ | ------------------------------ | ------------------------ |
-| 1    | [6216. Minimum Cost to Make Array Equal](https://leetcode.cn/problems/minimum-cost-to-make-array-equal/) | 使用最小代价将数组变成同一个数 | 如上，绝对值不等式的应用 |
-|      |                                                              |                                |                          |
-|      |                                                              |                                |                          |
+| ID   | LeetCode 题号                                                | 描述                             | 思路                     |
+| ---- | ------------------------------------------------------------ | -------------------------------- | ------------------------ |
+| 1    | [6216. Minimum Cost to Make Array Equal](https://leetcode.cn/problems/minimum-cost-to-make-array-equal/) | 使用最小代价将数组变成同一个数   | 如上，绝对值不等式的应用 |
+| 2    | [754. Reach a Number](https://leetcode.cn/problems/reach-a-number/) | 递增步长到达某一点的最小移动次数 | 分析 + 数学思维          |
+|      |                                                              |                                  |                          |
 

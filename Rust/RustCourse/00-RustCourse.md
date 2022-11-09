@@ -56,4 +56,6 @@
 
 - [ ] 最后，如果你想要了解 `Vector` 更多的用法，请参见本书的标准库解析章节：[`Vector`常用方法](https://course.rs/std/vector.html)
 
+- [ ] 最后，如果你想要了解 `HashMap` 更多的用法，请参见本书的标准库解析章节：[HashMap 常用方法](https://course.rs/std/hashmap.html)
+
 - [ ] 
