@@ -87,6 +87,7 @@
 | ---- | ------------------------------------------------------------ | ----------------------------- | ---------------------------------------- |
 | 1    | [239. Sliding Window Maximum](https://leetcode.cn/problems/sliding-window-maximum/) | 滑动窗口中的最大值            | 单调双端队列 **或者** 大顶堆（延迟更新） |
 | 2    | [862. Shortest Subarray with Sum at Least K](https://leetcode.cn/problems/shortest-subarray-with-sum-at-least-k/) | 满足和大于等于 K 的最短子数组 | 单调双端队列                             |
+|      |                                                              |                               |                                          |
 
 | 题                              |      |      |      |
 | ------------------------------- | ---- | ---- | ---- |
