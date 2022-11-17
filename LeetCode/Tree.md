@@ -169,6 +169,10 @@
   	}
   }
   
+  func lowbit(i int) int {
+  	return i & -i
+  }
+  
   func (na *NumArray) update(index int, val int) {
   	na.add(index, val-na.nums[index])
   	na.nums[index] = val
@@ -345,6 +349,7 @@
 | 5    | [2407. Longest Increasing Subsequence II](https://leetcode.cn/problems/longest-increasing-subsequence-ii/) | 最长递增子序列，但是有间隔限制 | 动态开树的线段树优化找的过程，原本还有一维DP的，结果发现不需要，**我是傻逼** |
 | 6    | [715. Range Module](https://leetcode.cn/problems/range-module/) | 范围查询                       | 线段树                                                       |
 | 7    | [315. Count of Smaller Numbers After Self](https://leetcode.cn/problems/count-of-smaller-numbers-after-self/) | 判断后序数列中有几个比当前数少 | 离散化树状数组 + 相对顺序排序（压缩，不然会吃 `超时`         |
+| 8    | [775. Global and Local Inversions](https://leetcode.cn/problems/global-and-local-inversions/) | 全局倒置和局部倒置             | 模拟 + 线段树统计                                            |
 
 | 题              | 题              | 题                  |
 | --------------- | --------------- | ------------------- |

@@ -58,4 +58,4 @@
 
 - [ ] 最后，如果你想要了解 `HashMap` 更多的用法，请参见本书的标准库解析章节：[HashMap 常用方法](https://course.rs/std/hashmap.html)
 
-- [ ] 
+- [ ] [Unsafe Rust: How and when (not) to use it](https://blog.logrocket.com/unsafe-rust-how-and-when-not-to-use-it/)

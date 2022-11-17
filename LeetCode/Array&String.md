@@ -140,20 +140,81 @@
 
 
 
+#### 回文字符串
+
+形如 `abcddcba` 以及 `abcdedcba` 的字符串，即字符出现**轴对称**的情况，称为**回文字符串**。
+
+如果要判断一个字符串是不是**回文字符串**，朴素的思想是：
+
+```go
+for i := 0; i < len(s); i++ {
+    if s[i] != s[len(s)-i-1] {
+        return false
+    }
+    return true
+}
+```
+
+但是扩展到要找所有的**回文子串**呢，如果还是朴素的方法，其复杂度过高了，时间复杂度为 $O(n^3)$ 。那么，我们引入一个新的方法，即**中心扩展法**：（例题：[647. Palindromic Substrings](https://leetcode.cn/problems/palindromic-substrings/)，[6236. Maximum Number of Non-overlapping Palindrome Substrings](https://leetcode.cn/problems/maximum-number-of-non-overlapping-palindrome-substrings/)）
+
+![strings_huiwen_center](images/strings_huiwen_center.svg)
+
+```go
+func countSubstrings(s string) int {
+    n := len(s)
+    ans := 0
+    for i := 0; i < 2 * n - 1; i++ {
+        l, r := i / 2, i / 2 + i % 2
+        for l >= 0 && r < n && s[l] == s[r] {
+            l--
+            r++
+            ans++
+        }
+    }
+    return ans
+}
+```
+
+
+
+#### 字符串的子序列
+
+判断一个字符串 `word` 是否是另一个字符串 `s` 的子序列，是比较简单的，最粗暴的是使用双指针遍历即可，其**时间复杂度**为 $O(n+m)$ 。但是，要是判断一组的字符串 `words` 呢，需要**优化**：
+
+##### 方法一：二分查找
+
+1. 对 `s` 做预处理，创建一个二维数组（哈希表），存放对应字母出现的位置下标 `idx` ：
+
+   ![subsequence-match](images/subsequence-match.svg)
+
+2. 每次匹配时，动用二分查找，找到恰好比 `word` 中上一个字母 `idx` 大的，如果没有，那么跳出。
+
+##### 方法二：分桶
+
+（**LeetCode** 题解中较为巧妙的做法）
+
+1. 预处理阶段，`words` 中的各个 `word` 根据首字母分桶，每当遍历到 `s` 中的字母时，将对应的桶内字母去掉首字母重新进桶。
+2. 直到所有桶内都空了或者 `s` 遍历完了。
+
+
+
 #### 数组和字符串的例题
 
-| ID   | LeetCode 题号                                                | 描述                                   | 思路                       |
-| ---- | ------------------------------------------------------------ | -------------------------------------- | -------------------------- |
-| 1    | [921. Minimum Add to Make Parentheses Valid](https://leetcode.cn/problems/minimum-add-to-make-parentheses-valid/) | 统计将括号序列合法化最小括号添加的个数 | 利用单个变量计数模拟栈操作 |
-| 2    | [1249. Minimum Remove to Make Valid Parentheses](https://leetcode.cn/problems/minimum-remove-to-make-valid-parentheses/) | 删除最少的非法括号                     | 向前遍历 + 向后遍历        |
-| 3    | [56. Merge Intervals](https://leetcode.cn/problems/merge-intervals/) | 区间合并                               | 排序 + 遍历                |
-| 4    | [57. Insert Interval](https://leetcode.cn/problems/insert-interval/) | 区间添加                               | 遍历 + 判断                |
-| 5    | [1094. Car Pooling](https://leetcode.cn/problems/car-pooling/) | 有限座位的车是否能运等车人             | 差分数组                   |
-| 6    | [15. 3Sum](https://leetcode.cn/problems/3sum/)               | 三数之和为零                           | 双指针优化                 |
-| 7    | [75. Sort Colors](https://leetcode.cn/problems/sort-colors/) | 三元素原地排序                         | 双指针                     |
-| 8    | [680. Valid Palindrome II](https://leetcode.cn/problems/valid-palindrome-ii/) | 删除至多一个字符是否成回文串           | 双指针                     |
-| 9    | [76. Minimum Window Substring](https://leetcode.cn/problems/minimum-window-substring/) | 满足要求的最小子串                     | 双指针滑动窗口             |
-| 10   | [190. Reverse Bits](https://leetcode.cn/problems/reverse-bits/) | 二进制倒置                             | 分治 或 遍历               |
+| ID   | LeetCode 题号                                                | 描述                                     | 思路                       |
+| ---- | ------------------------------------------------------------ | ---------------------------------------- | -------------------------- |
+| 1    | [921. Minimum Add to Make Parentheses Valid](https://leetcode.cn/problems/minimum-add-to-make-parentheses-valid/) | 统计将括号序列合法化最小括号添加的个数   | 利用单个变量计数模拟栈操作 |
+| 2    | [1249. Minimum Remove to Make Valid Parentheses](https://leetcode.cn/problems/minimum-remove-to-make-valid-parentheses/) | 删除最少的非法括号                       | 向前遍历 + 向后遍历        |
+| 3    | [56. Merge Intervals](https://leetcode.cn/problems/merge-intervals/) | 区间合并                                 | 排序 + 遍历                |
+| 4    | [57. Insert Interval](https://leetcode.cn/problems/insert-interval/) | 区间添加                                 | 遍历 + 判断                |
+| 5    | [1094. Car Pooling](https://leetcode.cn/problems/car-pooling/) | 有限座位的车是否能运等车人               | 差分数组                   |
+| 6    | [15. 3Sum](https://leetcode.cn/problems/3sum/)               | 三数之和为零                             | 双指针优化                 |
+| 7    | [75. Sort Colors](https://leetcode.cn/problems/sort-colors/) | 三元素原地排序                           | 双指针                     |
+| 8    | [680. Valid Palindrome II](https://leetcode.cn/problems/valid-palindrome-ii/) | 删除至多一个字符是否成回文串             | 双指针                     |
+| 9    | [76. Minimum Window Substring](https://leetcode.cn/problems/minimum-window-substring/) | 满足要求的最小子串                       | 双指针滑动窗口             |
+| 10   | [190. Reverse Bits](https://leetcode.cn/problems/reverse-bits/) | 二进制倒置                               | 分治 或 遍历               |
+| 11   | [647. Palindromic Substrings](https://leetcode.cn/problems/palindromic-substrings/) | 回文子串的个数                           | 中心扩展法                 |
+| 12   | [6236. Maximum Number of Non-overlapping Palindrome Substrings](https://leetcode.cn/problems/maximum-number-of-non-overlapping-palindrome-substrings/) | 不重叠回文字符串的最大数目               | 中心扩展法 + DP            |
+| 13   | [792. Number of Matching Subsequences](https://leetcode.cn/problems/number-of-matching-subsequences/) | 判断一系列字符串是否是某一字符串的子序列 | 预处理 + 二分查找          |
 
 | 题                                                           | 题                                  | 题                              | 题                             |
 | ------------------------------------------------------------ | ----------------------------------- | ------------------------------- | ------------------------------ |
