@@ -336,7 +336,8 @@
   }
   ```
 
-  
+
+
 
 #### 线段树例题
 
@@ -354,3 +355,56 @@
 | 题              | 题              | 题                  |
 | --------------- | --------------- | ------------------- |
 | 715. Range 模块 | 699. 掉落的方块 | 933. 最近的请求次数 |
+
+
+
+#### 字典树
+
+- 多叉树的特殊用例，每一个单词作为一个节点，搜索过程仍为 $O(n)$ 的复杂度，但是可以减少初始队列的大小，适合做类似于字典查找的工作，一般用于带**字符串查找**的题目。
+
+- 字典树**初始化**：
+
+  ```go
+  type node struct {
+      isEnd bool
+      nextMap map[byte]*node
+  }
+  
+  var root = &node{...}
+  ```
+
+  ```go
+  func insert(root *node, word string) {
+      cur := root
+      for i := 0; i < len(word); i++ {
+          if cur.nextMap[word[i]] == nil {
+              cur.nextMap[word[i]] = &node{...}
+          }
+          cur = cur.nextMap[word[i]]
+      }
+      cur.isEnd = true
+  }
+  ```
+
+- 字典树**查找**：
+
+  ```go
+  func search(root *node, word string) bool {
+      cur := root
+      for i := 0; i < len(word); i++ {
+          if cur.nextMap[word[i]] == nil {
+              return false
+          }
+          cur = cur.nextMap[word[i]]
+      }
+      return cur.isEnd
+  }
+  ```
+
+
+
+#### 字典树列题
+
+| ID   | LeetCode 题号                                                | 描述                   | 思路         |
+| ---- | ------------------------------------------------------------ | ---------------------- | ------------ |
+| 1    | [745. Prefix and Suffix Search](https://leetcode.cn/problems/prefix-and-suffix-search/) | 给定前缀和后缀查找单词 | 变形的字典树 |
