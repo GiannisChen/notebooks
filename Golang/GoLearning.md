@@ -8,6 +8,14 @@
 - [ ] staterful goroutines
 - [ ] text/template
 
+
+
+## 参考
+
+- https://draveness.me/golang/
+
+
+
 ## 目录
 
 1. [切片](#切片（slices）)

@@ -53,5 +53,6 @@
 | ------------------------------------------------------------ | -------- | ------ |
 | [882. Reachable Nodes In Subdivided Graph](https://leetcode.cn/problems/reachable-nodes-in-subdivided-graph/) | 未做     | `hard` |
 | [809. Expressive Words](https://leetcode.cn/problems/expressive-words/) | 未做     | `mid`  |
-| [1691. Maximum Height by Stacking Cuboids ](https://leetcode.cn/problems/maximum-height-by-stacking-cuboids/) | Daliy CV | `hard` |
+| [1691. Maximum Height by Stacking Cuboids ](https://leetcode.cn/problems/maximum-height-by-stacking-cuboids/) | Daily CV | `hard` |
+| [1703. Minimum Adjacent Swaps for K Consecutive Ones](https://leetcode.cn/problems/minimum-adjacent-swaps-for-k-consecutive-ones/) | Daily CV | `hard` |
 
