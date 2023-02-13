@@ -49,10 +49,15 @@
 
 
 
-| 题目                                                         | 状态     | 难度   |
-| ------------------------------------------------------------ | -------- | ------ |
-| [882. Reachable Nodes In Subdivided Graph](https://leetcode.cn/problems/reachable-nodes-in-subdivided-graph/) | 未做     | `hard` |
-| [809. Expressive Words](https://leetcode.cn/problems/expressive-words/) | 未做     | `mid`  |
-| [1691. Maximum Height by Stacking Cuboids ](https://leetcode.cn/problems/maximum-height-by-stacking-cuboids/) | Daily CV | `hard` |
-| [1703. Minimum Adjacent Swaps for K Consecutive Ones](https://leetcode.cn/problems/minimum-adjacent-swaps-for-k-consecutive-ones/) | Daily CV | `hard` |
+| 题目                                                         | 状态     | 难度   | 备注                                                         |
+| ------------------------------------------------------------ | -------- | ------ | ------------------------------------------------------------ |
+| [882. Reachable Nodes In Subdivided Graph](https://leetcode.cn/problems/reachable-nodes-in-subdivided-graph/) | 未做     | `hard` |                                                              |
+| [809. Expressive Words](https://leetcode.cn/problems/expressive-words/) | 未做     | `mid`  |                                                              |
+| [1691. Maximum Height by Stacking Cuboids ](https://leetcode.cn/problems/maximum-height-by-stacking-cuboids/) | Daily CV | `hard` |                                                              |
+| [1703. Minimum Adjacent Swaps for K Consecutive Ones](https://leetcode.cn/problems/minimum-adjacent-swaps-for-k-consecutive-ones/) | Daily CV | `hard` |                                                              |
+| https://leetcode.cn/problems/difference-between-maximum-and-minimum-price-sum/ | 328-Q4   | `hard` |                                                              |
+| [1824. Minimum Sideway Jumps](https://leetcode.cn/problems/minimum-sideway-jumps/) | Daily CV | `mid`  | https://leetcode.cn/problems/minimum-sideway-jumps/solution/cong-0-dao-1-de-0-1-bfspythonjavacgo-by-1m8z4/ 0-1 BFS |
+| [1815. Maximum Number of Groups Getting Fresh Donuts](https://leetcode.cn/problems/maximum-number-of-groups-getting-fresh-donuts/) | Daily CV | `hard` |                                                              |
+| [1210. Minimum Moves to Reach Target with Rotations](https://leetcode.cn/problems/minimum-moves-to-reach-target-with-rotations/) | Daily CV | `hard` |                                                              |
+| [1223. Dice Roll Simulation](https://leetcode.cn/problems/dice-roll-simulation/) | Daily CV | `hard` |                                                              |
 
