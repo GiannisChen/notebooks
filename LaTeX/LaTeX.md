@@ -252,7 +252,7 @@ $$
 \begin{split}
 \cos 2x &= \cos^2x - \sin^2x \\
 &=2\cos^2x-1
-\end{aplit}
+\end{split}
 ```
 
 $$

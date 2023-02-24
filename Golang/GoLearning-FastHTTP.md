@@ -633,7 +633,7 @@ func (wp *workerPool) getCh() *workerChan {
 }
 ```
 
-这是我认为比较重要的函数之一，`getCh` 会返回一个 `workerChan` 的引用，但是我并不需要知道这个 `workerChan` 具体是在哪儿的：是曾经用过（`wp.ready`）还是船新版本（`n < 0`）。所以这里会有个判断，如果 `ready` 就绪队列里已经有了，就让暖玩胎的先跑，然后再去访问内存池，看看内存池里有没有我们需要的。当然，与 `VictoriaMetrics` 中略带差异的是，由于设置了 `sync.Pool.New` ，Go会自动返回非 `nil` 的 `any` ，也许是个进步（大概？）。
+这是我认为比较重要的函数之一，`getCh` 会返回一个 `workerChan` 的引用，但是我并不需要知道这个 `workerChan` 具体是在哪儿的：是曾经用过（`wp.ready`）还是船新版本（`n < 0`）。所以这里会有个判断，如果 `ready` 就绪队列里已经有了，就让暖完胎的先跑，然后再去访问内存池，看看内存池里有没有我们需要的。当然，与 `VictoriaMetrics` 中略带差异的是，由于设置了 `sync.Pool.New` ，Go会自动返回非 `nil` 的 `any` ，也许是个进步（大概？）。
 
 如果 `workerChan` 达到了上限呢，也就是 `MaxWorkersCount` ，那么将返回 `nil` 表示找不到。
 

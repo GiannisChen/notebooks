@@ -1,4 +1,4 @@
-## [Question]
+## 00. Template
 
 - [793. Preimage Size of Factorial Zeroes Function](https://leetcode.cn/problems/preimage-size-of-factorial-zeroes-function/)
 

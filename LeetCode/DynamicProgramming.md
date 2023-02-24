@@ -490,7 +490,6 @@
   }
   ```
 
-  
 
 
 
@@ -511,6 +510,7 @@
 | 11   | [2054. Two Best Non-Overlapping Events](https://leetcode.cn/problems/two-best-non-overlapping-events/) | 在限制数量的情况下可以参加的会议的最高价值    | 同上题，不过限制数量固定在 $2$ ，所以基本上 `CV` 就行        |
 | 12   | [902. Numbers At Most N Given Digit Set](https://leetcode.cn/problems/numbers-at-most-n-given-digit-set/) | 给定非零数字最多能组成多少个不超过 `N` 的数字 | 标准数位 DP + 二分查找                                       |
 | 13   | [907. Sum of Subarray Minimums](https://leetcode.cn/problems/sum-of-subarray-minimums/) | 子数组的最小值之和                            | DP + 单调栈                                                  |
+| 14   | [1140. Stone Game II](https://leetcode.cn/problems/stone-game-ii/) | 石头游戏                                      | 状态压缩搜索`DFS`                                            |
 
 
 
