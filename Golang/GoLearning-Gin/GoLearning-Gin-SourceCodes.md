@@ -138,7 +138,7 @@ gin框架使用的是定制版本的[httprouter](https://github.com/julienschmid
 
 **基数树**（Radix Tree）又称为**PAT位树**（Patricia Trie or crit bit tree），是一种更节省空间的**前缀树**（Trie Tree）。对于基数树的每个节点，如果该节点是唯一的子树的话，就和父节点合并。下图为一个基数树示例：
 
-![img](Images/radix_tree.png)
+![img](../Images/radix_tree.png)
 
 `Radix Tree`可以被认为是一棵简洁版的前缀树。我们**注册路由**的过程就是构造前缀树的过程，具有公共前缀的节点也**共享一个公共父节点**。假设我们现在注册有以下路由信息：
 
@@ -157,7 +157,7 @@ r.GET("/contact/", func8)
 
 那么我们会得到一个`GET`方法对应的路由树，具体结构如下：
 
-![rt](Images/rt.svg)
+![rt](../Images/rt.svg)
 
 但是我们需要注意的是，`s`节点和`:post`是空节点，意味着里面不会有任何处理函数。
 
@@ -460,7 +460,7 @@ walk:
 2. 继续注册一条没有公共前缀的路由，例如`blog`；
 3. 注册一条与先前注册的路由有公共前缀的路由，例如`support`；
 
-![addroute](Images/addroute.gif)
+![addroute](../Images/addroute.gif)
 
 这里出现了另一个问题，通配符怎么处理呢？交由`insertChild`来处理罢：
 
@@ -905,11 +905,11 @@ func (c *Context) Next() {
 
 从上面的代码可以看到，这里通过索引遍历`HandlersChain`链条，从而实现依次调用该路由的每一个函数（中间件或处理请求的函数）。
 
-![gin_middleware1](Images/gin_middleware1.png)
+![gin_middleware1](../Images/gin_middleware1.png)
 
 我们可以在中间件函数中通过再次调用`c.Next()`实现嵌套调用（`func1`中调用`func2`；`func2`中调用`func3`）：
 
-![gin_middleware2](Images/gin_middleware2.png)
+![gin_middleware2](../Images/gin_middleware2.png)
 
 或者通过调用`c.Abort()`中断整个调用链条，从当前函数返回。
 
@@ -965,7 +965,7 @@ type Context struct {
 
 `c.Set()`和`c.Get()`这两个方法多用于在多个函数之间通过`c`传递数据的，比如我们可以在认证中间件中获取当前请求的相关信息（userID等）通过`c.Set()`存入`c`，然后在后续处理业务逻辑的函数中通过`c.Get()`来获取当前请求的用户。`c`就像是一根绳子，将该次请求相关的所有的函数都串起来了。
 
-![gin_middleware3](Images/gin_middleware3.png)
+![gin_middleware3](../Images/gin_middleware3.png)
 
 
 
