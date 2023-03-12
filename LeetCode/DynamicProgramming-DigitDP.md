@@ -107,10 +107,10 @@ func countSpecialNumbers(n int) int {
 | 4    | [面试题 17.06. Number Of 2s In Range LCCI](https://leetcode.cn/problems/number-of-2s-in-range-lcci/) | 从 0 到 n (含 n) 中数字 2 出现的次数 | 同上                                                         |
 | 5    | [1012. Numbers With Repeated Digits](https://leetcode.cn/problems/numbers-with-repeated-digits/) | **至少 1 位** 重复数字的正整数的个数 | 2376的取逆                                                   |
 | 6    | 248                                                          |                                      |                                                              |
-| 7    | 600                                                          |                                      |                                                              |
+| 7    | [600. Non-negative Integers without Consecutive Ones](https://leetcode.cn/problems/non-negative-integers-without-consecutive-ones/) | 二进制的数                           |                                                              |
 | 8    | 788                                                          |                                      |                                                              |
-| 9    | 902                                                          |                                      |                                                              |
+| 9    | [902. Numbers At Most N Given Digit Set](https://leetcode.cn/problems/numbers-at-most-n-given-digit-set/) | 用给定数字构造                       | 多一个二分查找罢                                             |
 | 10   | 1088                                                         |                                      |                                                              |
 | 11   | 1215                                                         |                                      |                                                              |
-| 12   | 1397                                                         |                                      |                                                              |
+| 12   | [1397. Find All Good Strings](https://leetcode.cn/problems/find-all-good-strings/) |                                      |                                                              |
 

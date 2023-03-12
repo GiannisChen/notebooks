@@ -71,3 +71,26 @@ http://127.0.0.1:3000/login
 
 
 
+---
+
+
+
+## go-admin
+
+- https://github.com/go-admin-team/go-admin-ui
+- https://github.com/go-admin-team/go-admin
+
+
+
+### 前端
+
+一样，我们首先放弃前端，吃现成的：
+
+```shell
+cd ui && npm install --force --registry=https://registry.npmmirror.com
+```
+
+```shell
+npm run dev
+```
+
