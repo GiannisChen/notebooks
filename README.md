@@ -9,4 +9,5 @@
 
 ## LOG 2023-03-13
 
-- now `active`: Golang, Exams, Interview, LeetCode, Rust
+- Now `active`: Golang, Exams, Interview, LeetCode, Rust
+- Make it public
