@@ -8,7 +8,7 @@
 
 ### 数据结构
 
-Go 语言运行时同时使用了多个数据结构组合表示哈希表，其中 [runtime.hmap](https://draveness.me/golang/tree/runtime.hmap) 是最核心的结构体，我们先来了解一下该结构体的内部字段：
+​	
 
 ```go
 type hmap struct {

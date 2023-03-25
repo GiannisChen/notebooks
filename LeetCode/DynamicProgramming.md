@@ -511,6 +511,8 @@
 | 12   | [902. Numbers At Most N Given Digit Set](https://leetcode.cn/problems/numbers-at-most-n-given-digit-set/) | 给定非零数字最多能组成多少个不超过 `N` 的数字 | 标准数位 DP + 二分查找                                       |
 | 13   | [907. Sum of Subarray Minimums](https://leetcode.cn/problems/sum-of-subarray-minimums/) | 子数组的最小值之和                            | DP + 单调栈                                                  |
 | 14   | [1140. Stone Game II](https://leetcode.cn/problems/stone-game-ii/) | 石头游戏                                      | 状态压缩搜索`DFS`                                            |
+| 15   | [174. Dungeon Game](https://leetcode.cn/problems/dungeon-game/) | 有掉血有加血的DP地牢                          | 一维DP优化二维，反向计算                                     |
+| 16   | [377. Combination Sum IV](https://leetcode.cn/problems/combination-sum-iv/) | 青蛙跳的加强版                                | 一维DP，但是二位循环                                         |
 
 
 
