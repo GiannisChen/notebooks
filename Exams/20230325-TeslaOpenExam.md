@@ -29,7 +29,7 @@
 ```go
 func maxDifference(num int) int {
     if num == 0 {
-        return 27
+        return 50 - 5
     }
     if num < 0 {
         num = -num
