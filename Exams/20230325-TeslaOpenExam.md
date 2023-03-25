@@ -95,7 +95,7 @@ func minOperations(str string) int {
         }
     }
     counts := make([]int, max+1)
-    for i:=max; i>0; i++ {
+    for i:=max; i>0; i-- {
         if counts[i] <= 1 {
             continue
         }
