@@ -61,4 +61,5 @@
 | [1223. Dice Roll Simulation](https://leetcode.cn/problems/dice-roll-simulation/) | Daily CV | `hard`    |            |
 | 数位DP                                                       | 待学     | `unknown` |            |
 | [982. Triples with Bitwise AND Equal To Zero](https://leetcode.cn/problems/triples-with-bitwise-and-equal-to-zero/) | Daily CV | `hard`    | 二进制枚举 |
+| [1638. Count Substrings That Differ by One Character](https://leetcode.cn/problems/count-substrings-that-differ-by-one-character/) | Daily CV | `mid`     |            |
 

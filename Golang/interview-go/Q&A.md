@@ -178,7 +178,7 @@ func Append(slice, data []byte) []byte {
 
 - https://go.dev/doc/effective_go#defer
 
-Go 的 `defer` 语句在函数结束之前安排了立即运行一个函数调用（被延迟的函数）。这是一种不常见但有效的方法，用于处理一些情况，比如不管函数采用哪条路径返回，都必须释放资源。典型的例子是解锁互斥锁或关闭文件。因此，他的执行顺序被设计为：
+Go 的 `defer` 语句在函数结束之前安排了立即运行一个函数调用（被延迟的函数）。这是一种不常见但有效的方法，用于处理一些情况，比如不管函数采用哪条路径返回，都必须释放资源。典型的例子是解锁互斥锁或关闭文件。因此，他的执行顺序被设计为：（`defer`在加载`return`值到真正返回上一个函数中间执行）
 
 1. `return`（最先）
 2. `return val`
@@ -399,6 +399,12 @@ Go 中解析的 tag 是通过反射实现的，反射是指计算机程序在运
 
 
 #### 10. 讲讲 Go 的 select 底层数据结构和一些特性？
+
+`select` 是操作系统中的系统调用，我们经常会使用 `select`、`poll` 和 `epoll` 等函数构建 I/O 多路复用模型提升程序的性能。Go 语言的 `select` 与操作系统中的 `select` 比较相似，也能够让 Goroutine 同时等待多个 Channel 可读或者可写，在多个文件或者 Channel状态改变之前，`select` 会一直阻塞当前线程或者 Goroutine。（当然，注意`default`的例外作用）
+
+`case`包含了`channel`的收发操作，随机执行一种情况。
+
+- https://draveness.me/golang/docs/part2-foundation/ch05-keyword/golang-select/#52-select
 
 
 
@@ -776,7 +782,7 @@ golang内存管理基本是参考tcmalloc来进行的。go内存管理本质上�
    ![img](../Images/v2-05f622a5c88a9a9456d43ee301622582_720w.webp)
 
    - **mheap.spans**：用来存储 page 和 span 信息，比如一个 span 的起始地址是多少，有几个 page，已使用了多大等等。
-   - mheap.bitmap： 存储着各个 span 中对象的标记信息，比如对象是否可回收等等。
+   - **mheap.bitmap**： 存储着各个 span 中对象的标记信息，比如对象是否可回收等等。
    - **mheap.arena_start**：将要分配给应用程序使用的空间。
 
 2. **mcentral**
@@ -861,6 +867,14 @@ M的状态：
 
 解决方法是，对临界区资源上锁，或者使用原子操作（atomics），原子操作的开销小于上锁。
 
+原子操作实现的功能我们使用互斥锁也能实现，但是原子操作是更加轻量级的。
+
+原子操作会直接通过CPU指令保证当前Goroutine在执行操作时不会被其它线程所抢占。而互斥锁实现的操作，当前执行Goroutine是会被其它Goroutine抢占的，但是其它的Goroutine在未获取锁的情况并不能顺利执行，从而保证了并发的安全性。
+
+所以，原子操作相对于互斥锁，大大的减少了同步Goroutine对程序性能的损耗。
+
+原子操作能够使用的场景很少，是有很大局限性的。但是在能够使用原子操作的情况下，用它来代替互斥锁，对程序性能的提升是非常大的。
+
 
 
 #### 33. 如果若干个goroutine，有一个panic会怎么做？
@@ -938,13 +952,13 @@ etcd 是用**Go语言**编写的，它具有出色的跨平台支持，小的二
 
 #### 39. GIN怎么做参数校验？
 
-go采用validator作参数校验。
+go采用`validator`作参数校验。
 
 它具有以下独特功能：
 
-- 使用验证tag或自定义validator进行跨字段Field和跨结构体验证。
+- 使用验证tag或自定义`validator`进行跨字段`Field`和跨结构体验证。
 - 允许切片、数组和哈希表，多维字段的任何或所有级别进行校验。
-- 能够对哈希表key和value进行验证
+- 能够对哈希表`key`和`value`进行验证
 - 通过在验证之前确定它的基础类型来处理类型接口。
 - 别名验证标签，允许将多个验证映射到单个标签，以便更轻松地定义结构体上的验证
 - gin web 框架的默认验证器；
@@ -961,7 +975,7 @@ Middleware是Web的重要组成部分，中间件（通常）是一小段代码�
 
 #### 41. Go解析Tag是怎么实现的？
 
-Go解析tag采用的是**反射**。具体来说使用 `reflect.ValueOf` 方法获取其反射值，然后获取其Type属性，之后再通过 `Field(i)` 获取第i+1个field，再.Tag获得Tag。反射实现的原理在：`src/reflect/type.go`中
+Go解析`tag`采用的是**反射**。具体来说使用 `reflect.ValueOf` 方法获取其反射值，然后获取其Type属性，之后再通过 `Field(i)` 获取第i+1个`field`，再`.Tag`获得`Tag`。反射实现的原理在：`src/reflect/type.go`中
 
 
 
