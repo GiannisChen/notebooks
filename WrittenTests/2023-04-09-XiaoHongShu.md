@@ -264,11 +264,11 @@ RBR						# 球颜色
 
 那么，我们现在不急着直接更新红球，而是加个虚拟的绿球：
 
-![20230409-xiaohongshu-3-example12](../../../Drawios/Exam/20230409-xiaohongshu-3-example12.svg)
+![20230409-xiaohongshu-3-example12](images/20230409-xiaohongshu-3-example12.svg)
 
 总积分用额外的`RedScore`去维护，若此时红球球数`RedSize`，则`RedScore+=RedSize*(timestamp-last_timestamp)`；
 
-![20230409-xiaohongshu-3-example13](../../../Drawios/Exam/20230409-xiaohongshu-3-example13.svg)
+![20230409-xiaohongshu-3-example13](images/20230409-xiaohongshu-3-example13.svg)
 
 当一个球被取出来，此时我再做真正的更新：红球数据更新，`RedSize`和`RedScore`更新。
 
