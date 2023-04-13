@@ -1521,6 +1521,12 @@ type uintptr uintptr
 
 
 
+
+
+#### 61. Go实现生产者消费者队列
+
+- https://blog.csdn.net/qq_41767116/article/details/126346217
+
 ---
 
 ## todo
@@ -1530,8 +1536,6 @@ type uintptr uintptr
 #### 熔断怎么做的
 
 #### 服务降级怎么搞
-
-#### 1亿条数据动态增长，取top10，怎么实现
 
 #### 进程挂了怎么办
 

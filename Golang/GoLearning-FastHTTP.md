@@ -6,7 +6,7 @@
 
 ### 前言
 
-`fasthttp` 是一个在很多场景中都出现过的项目，首先出场于 **valyala** 的时序数据库系统 [VictoriaMetrics](https://github.com/VictoriaMetrics/VictoriaMetrics) 中，作为高性能数据库的接口使用；后来，在异军突起的后端架构 [fiber](https://github.com/gofiber/fiber) 中，也发现了 `fasthttp` 的身影；同时，在前段时间看协程池的时候，第三次看到了 `fasthttp` ，作为较火的 [ants](https://github.com/panjf2000/ants) 的思路来源而被提及。
+~~`fasthttp` 是一个在很多场景中都出现过的项目，首先出场于 **valyala** 的时序数据库系统 [VictoriaMetrics](https://github.com/VictoriaMetrics/VictoriaMetrics) 中，作为高性能数据库的接口使用；~~后来，在异军突起的后端架构 [fiber](https://github.com/gofiber/fiber) 中，也发现了 `fasthttp` 的身影；同时，在前段时间看协程池的时候，第三次看到了 `fasthttp` ，作为较火的 [ants](https://github.com/panjf2000/ants) 的思路来源而被提及。
 
 `fasthttp` 和 `VictoriaMetrics` 中一脉相承了池化操作，池化让资源利用变得更加合理，同时也能避免过多的 GC 的介入。作为号称比原生 `net/http` 快上数倍乃至数十倍的包（当然，作者也强调了在一定的使用场景下，包括高负载等），自然需要一探究竟。作为笔者写下的第一篇原创源码解读，必然存在不足之处乃至谬误，如有机会定当返工订正。
 

@@ -106,7 +106,7 @@ func DFS(g graph, n, m int) {
 | 6    | [417. Pacific Atlantic Water Flow](https://leetcode.cn/problems/pacific-atlantic-water-flow/) | 不同海拔的海岛是否可达上下两侧        | `DFS` 反向操作，从边上向中心传播                             |
 | 7    | [127. Word Ladder](https://leetcode.cn/problems/word-ladder/) | 单词接龙，每次只能变化一个字符 `hard` | `BFS` ，邻接表，用双向队列控制扇出                           |
 | 8    | [695. Max Area of Island](https://leetcode.cn/problems/max-area-of-island/) | 返回面积最大的岛的面积                | `DFS` 多一个返回值，很直白                                   |
-| 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | 按规则跳跃                            | `DFS`，我用了双队列优化，通过删邻接表来控制队列规模          |
+| 9    | [1345. Jump Game IV](https://leetcode.cn/problems/jump-game-iv/) | 按规则跳跃                            | `BFS`，我用了双队列优化，通过删邻接表来控制队列规模          |
 | 10   | [864. Shortest Path to Get All Keys](https://leetcode.cn/problems/shortest-path-to-get-all-keys/) | 带锁和钥匙的迷宫，需要获得所有钥匙    | `DFS`，状态压缩，同一房间不可以带相同钥匙访问第二遍          |
 
 

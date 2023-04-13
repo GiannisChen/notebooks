@@ -513,6 +513,7 @@
 | 14   | [1140. Stone Game II](https://leetcode.cn/problems/stone-game-ii/) | 石头游戏                                      | 状态压缩搜索`DFS`                                            |
 | 15   | [174. Dungeon Game](https://leetcode.cn/problems/dungeon-game/) | 有掉血有加血的DP地牢                          | 一维DP优化二维，反向计算                                     |
 | 16   | [377. Combination Sum IV](https://leetcode.cn/problems/combination-sum-iv/) | 青蛙跳的加强版                                | 一维DP，但是二位循环                                         |
+| 17   | [1039. Minimum Score Triangulation of Polygon](https://leetcode.cn/problems/minimum-score-triangulation-of-polygon/) | 多边形的三角剖分                              | 转换成区间DP                                                 |
 
 
 
