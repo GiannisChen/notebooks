@@ -1350,3 +1350,804 @@ get UserDao...
 get User...
 ```
 
+
+
+### 基于注解管理 bean ⭐
+
+> 从 Java 5 开始，Java 增加了对**注解**（**Annotation**）的支持，它是代码中的一种特殊标记，可以在编译、类加载和运行时被读取，执行相应的处理。开发人员可以通过注解在不改变原有代码和逻辑的情况下，在源代码中嵌入补充信息。
+
+Spring 从 2.5 版本开始提供了对注解技术的全面支持，我们可以**使用注解来实现自动装配**，简化 Spring 的 XML 配置。Spring 通过注解实现自动装配的步骤如下：
+
+1. 引入依赖
+2. 开启组件扫描
+3. 使用注解定义 Bean
+4. 依赖注入
+
+
+
+#### 搭建子模块
+
+重新创建子模块用于测试。
+
+
+
+#### 引入配置文件和依赖
+
+1. 引入模块日志 `log4j2.xml`
+
+2. 添加 maven 依赖：
+
+```xml
+<dependencies>
+<!--spring context依赖-->
+<!--当你引入Spring Context依赖之后，表示将Spring的基础依赖引入了-->
+<dependency>
+<groupId>org.springframework</groupId>
+<artifactId>spring-context</artifactId>
+<version>6.0.3</version>
+</dependency>
+
+<!--junit5测试-->
+<dependency>
+<groupId>org.junit.jupiter</groupId>
+<artifactId>junit-jupiter-api</artifactId>
+</dependency>
+
+<!--log4j2的依赖-->
+<dependency>
+<groupId>org.apache.logging.log4j</groupId>
+<artifactId>log4j-core</artifactId>
+<version>2.19.0</version>
+</dependency>
+<dependency>
+<groupId>org.apache.logging.log4j</groupId>
+<artifactId>log4j-slf4j2-impl</artifactId>
+<version>2.19.0</version>
+</dependency>
+</dependencies>
+```
+
+
+
+#### 开启组件扫描
+
+**Spring 默认不使用注解装配 Bean**，因此我们需要在 Spring 的 XML 配置中，通过 <context:component-scan> 元素开启 Spring Beans 的自动扫描功能。开启此功能后，Spring 会自动从扫描指定的包（`base-package` 属性设置）及其子包下的所有类，如果类上使用了 `@Component` 注解，就将该类装配到容器中。
+
+`beans.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+    http://www.springframework.org/schema/context
+            http://www.springframework.org/schema/context/spring-context.xsd">
+    <!--开启组件扫描功能-->
+    <context:component-scan base-package="com.atguigu.spring6"></context:component-scan>
+</beans>
+```
+
+注意：在使用 <context:component-scan> 元素开启自动扫描功能前，首先需要在 XML 配置的一级标签 `<beans>` 中添加 context 相关的约束。
+
+
+
+##### 最基本的扫描方式
+
+```xml
+<context:component-scan base-package="com.atguigu.spring6"></context:component-scan>
+```
+
+##### 指定要排除的组件
+
+```xml
+<context:component-scan base-package="com.atguigu.spring6">
+    <!-- context:exclude-filter标签：指定排除规则 -->
+    <!-- 
+ 		type：设置排除或包含的依据
+		type="annotation"，根据注解排除，expression中设置要排除的注解的全类名
+		type="assignable"，根据类型排除，expression中设置要排除的类型的全类名
+	-->
+    <context:exclude-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+    <!--<context:exclude-filter type="assignable" expression="com.atguigu.spring6.controller.UserController"/>-->
+</context:component-scan>
+```
+
+##### 仅扫描指定组件
+
+```xml
+<context:component-scan base-package="com.atguigu" use-default-filters="false">
+    <!-- context:include-filter标签：指定在原有扫描规则的基础上追加的规则 -->
+    <!-- use-default-filters属性：取值false表示关闭默认扫描规则 -->
+    <!-- 此时必须设置use-default-filters="false"，因为默认规则即扫描指定包下所有类 -->
+    <!-- 
+ 		type：设置排除或包含的依据
+		type="annotation"，根据注解排除，expression中设置要排除的注解的全类名
+		type="assignable"，根据类型排除，expression中设置要排除的类型的全类名
+	-->
+    <context:include-filter type="annotation" expression="org.springframework.stereotype.Controller"/>
+	<!--<context:include-filter type="assignable" expression="com.atguigu.spring6.controller.UserController"/>-->
+</context:component-scan>
+```
+
+
+
+#### 使用注解定义 Bean
+
+Spring 提供了以下多个注解，这些注解可以直接标注在 Java 类上，将它们定义成 Spring Bean。
+
+| 注解          | 说明                                                         |
+| ------------- | ------------------------------------------------------------ |
+| `@Component`  | 该注解用于描述 Spring 中的 Bean，它是一个泛化的概念，仅仅表示容器中的一个组件（Bean），并且可以作用在应用的任何层次，例如 Service 层、Dao 层等。  使用时只需将该注解标注在相应类上即可。 |
+| `@Repository` | 该注解用于将数据访问层（Dao 层）的类标识为 Spring 中的 Bean，其功能与 `@Component` 相同。 |
+| `@Service`    | 该注解通常作用在业务层（Service 层），用于将业务层的类标识为 Spring 中的 Bean，其功能与 `@Component` 相同。 |
+| `@Controller` | 该注解通常作用在控制层（如SpringMVC 的 Controller），用于将控制层的类标识为 Spring 中的 Bean，其功能与 `@Component` 相同。 |
+
+简单测试：
+
+```java
+@Component(value = "user")
+public class User {
+    private String name;
+
+    @Override
+    public String toString() {
+        return "User(name=" + name + ")";
+    }
+}
+```
+
+```java
+@Test
+public void test() {
+    ClassPathXmlApplicationContext ac = new ClassPathXmlApplicationContext("beans.xml");
+    User user = (User) ac.getBean("user");
+    System.out.println(user);
+}
+```
+
+结果：
+
+```shell
+User(name=null)
+```
+
+
+
+#### @Autowired 注入
+
+单独使用 `@Autowired` 注解，**默认根据类型装配**`byType`。
+
+```java
+import java.lang.annotation.Documented;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Target({ElementType.CONSTRUCTOR, ElementType.METHOD, ElementType.PARAMETER, ElementType.FIELD, ElementType.ANNOTATION_TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Documented
+public @interface Autowired {
+    boolean required() default true;
+}
+```
+
+源码中有两处需要注意：
+
+1. 该注解可以标注在：**构造方法上**、**方法上**、**形参上**、**属性上**和**注解上**。
+2. 该注解有一个`required`属性，默认值是`true`，表示在注入的时候要求被注入的 Bean 必须是存在的，如果不存在则报错。如果`required`属性设置为`false`，表示注入的Bean存在或者不存在都没关系，存在的话就注入，不存在的话，也不报错。
+
+
+
+##### 1. 属性注入
+
+创建完整的`Dao`、`Controller`和`Service`：
+
+###### Dao
+
+```java
+public interface UserDao {
+    public void print();
+}
+
+@Repository
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao execute...");
+    }
+}
+```
+
+###### Service
+
+```java
+public interface UserService {
+    public void print();
+}
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    @Autowired
+    private UserDao userDao;
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+###### Controller
+
+```java
+@Controller
+public class UserController {
+    @Autowired
+    private UserService userService;
+
+    public void print() {
+        userService.print();
+        System.out.println("Controller execute...");
+    }
+}
+```
+
+以上构造方法和setter方法都没有提供，经过测试，仍然可以注入成功：
+
+```shell
+Dao execute...
+Service execute...
+Controller execute...
+```
+
+
+
+##### 2. set 注入
+
+换一种注入方式，使用 `setter` 方法注入：
+
+###### Dao
+
+```java
+public interface UserDao {
+    public void print();
+}
+
+@Repository
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao execute...");
+    }
+}
+```
+
+###### Service
+
+```java
+public interface UserService {
+    public void print();
+}
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    private UserDao userDao;
+    
+    @Autowired
+    public void setUserDao(UserDao userDao) {
+        this.userDao = userDao;
+    }
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+###### Controller
+
+```java
+@Controller
+public class UserController {
+    private UserService userService;
+
+    @Autowired
+    public void setUserService(UserService userService) {
+        this.userService = userService;
+    }
+    
+    public void print() {
+        userService.print();
+        System.out.println("Controller execute...");
+    }
+}
+```
+
+以上只提供了 `setter` 方法，经过测试，仍然可以注入成功：
+
+```shell
+Dao execute...
+Service execute...
+Controller execute...
+```
+
+
+
+##### 3. 构造方法注入
+
+只使用构造方法注入：
+
+###### Dao
+
+```java
+public interface UserDao {
+    public void print();
+}
+
+@Repository
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao execute...");
+    }
+}
+```
+
+###### Service
+
+```java
+public interface UserService {
+    public void print();
+}
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    private UserDao userDao;
+
+    @Autowired
+    public UserServiceImpl(UserDao userDao) {
+        this.userDao = userDao;
+    }
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+###### Controller
+
+```java
+@Controller
+public class UserController {
+    private UserService userService;
+
+    @Autowired
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    public void print() {
+        userService.print();
+        System.out.println("Controller execute...");
+    }
+}
+```
+
+以上只提供了构造方法，经过测试，仍然可以注入成功：
+
+```shell
+Dao execute...
+Service execute...
+Controller execute...
+```
+
+
+
+##### 4. 形参注入
+
+只使用形参注入：
+
+###### Dao
+
+```java
+public interface UserDao {
+    public void print();
+}
+
+@Repository
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao execute...");
+    }
+}
+```
+
+###### Service
+
+```java
+public interface UserService {
+    public void print();
+}
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    private UserDao userDao;
+
+    public UserServiceImpl(@Autowired UserDao userDao) {
+        this.userDao = userDao;
+    }
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+###### Controller
+
+```java
+@Controller
+public class UserController {
+    private UserService userService;
+
+    public UserController(@Autowired UserService userService) {
+        this.userService = userService;
+    }
+
+    public void print() {
+        userService.print();
+        System.out.println("Controller execute...");
+    }
+}
+```
+
+以上只提供了形参构造方法，经过测试，仍然可以注入成功：
+
+```shell
+Dao execute...
+Service execute...
+Controller execute...
+```
+
+
+
+##### 5. 无注解仅构造函数注入
+
+只使用构造方法注入，仅注解属性：
+
+###### Dao
+
+```java
+public interface UserDao {
+    public void print();
+}
+
+@Repository
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao execute...");
+    }
+}
+```
+
+###### Service
+
+```java
+public interface UserService {
+    public void print();
+}
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    @Autowired
+    private UserDao userDao;
+
+    public UserServiceImpl(UserDao userDao) {
+        this.userDao = userDao;
+    }
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+###### Controller
+
+```java
+@Controller
+public class UserController {
+    @Autowired
+    private UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    public void print() {
+        userService.print();
+        System.out.println("Controller execute...");
+    }
+}
+```
+
+经过测试，仍然可以注入成功：
+
+```shell
+Dao execute...
+Service execute...
+Controller execute...
+```
+
+> **当有参数的构造方法只有一个时，@Autowired注解可以省略。**
+>
+> 说明：有多个构造方法时呢？大家可以测试（再添加一个无参构造函数），测试报错。
+
+
+
+##### 6. @Autowired 注解和 @Qualifier 注解联合注入
+
+当我们添加一个`dao`层的实现，也就是`dao`层有两个实现：
+
+```java
+@Repository
+public class UserDaoRedisImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao Redis execute...");
+    }
+}
+```
+
+报错：（不能装配，`UserDao`这个Bean的数量等于2）
+
+```shell
+org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'userController' defined in file [F:\My Github Repositories\spring6\spring-ioc-annotation\target\classes\spring6\controller\UserController.class]: Unsatisfied dependency expressed through constructor parameter 0: Error creating bean with name 'userServiceImpl' defined in file [F:\My Github Repositories\spring6\spring-ioc-annotation\target\classes\spring6\service\UserServiceImpl.class]: Unsatisfied dependency expressed through constructor parameter 0: No qualifying bean of type 'spring6.dao.UserDao' available: expected single matching bean but found 2: userDaoImpl,userDaoRedisImpl
+```
+
+怎么解决这个问题呢？**当然要`byName`，根据名称进行装配了。**修改`UserServiceImpl`类：
+
+```java
+@Service
+public class UserServiceImpl implements UserService {
+
+    @Autowired
+    @Qualifier("userDaoRedisImpl")
+    private UserDao userDao;
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+结果：
+
+```shell
+Dao Redis execute...
+Service execute...
+Controller execute...
+```
+
+
+
+##### 总结
+
+- `@Autowired`注解可以出现在：属性上、构造方法上、构造方法的参数上、setter方法上。
+- 当带参数的构造方法只有一个，`@Autowired`注解可以省略。（）
+- `@Autowired`注解默认根据类型注入。如果要根据名称注入的话，需要配合`@Qualifier`注解一起使用。
+
+
+
+#### @Resource 注入
+
+`@Resource`注解也可以完成属性注入，与`@Autowired`注解的区别：
+
+- `@Resource`注解是JDK扩展包中的，也就是说属于JDK的一部分。所以该注解是标准注解，更加具有通用性。（JSR-250标准中制定的注解类型。JSR是Java规范提案。)
+- `@Autowired`注解是Spring框架自己的。
+- **`@Resource`注解默认根据名称装配`byName`，未指定`name`时，使用属性名作为`name`。通过`name`找不到的话会自动启动通过类型`byType`装配。**
+- **@Autowired注解默认根据类型装配`byType`，如果想根据名称装配，需要配合`@Qualifier`注解一起用。**
+- `@Resource`注解用在属性上、`setter`方法上。
+- `@Autowired`注解用在属性上、`setter`方法上、构造方法上、构造方法参数上。
+
+> `@Resource`注解属于JDK扩展包，所以不在JDK当中，需要额外引入以下依赖：【**如果是JDK8的话不需要额外引入依赖。高于JDK11或低于JDK8需要引入以下依赖。**】
+>
+> ```xml
+> <dependency>
+>     <groupId>jakarta.annotation</groupId>
+>     <artifactId>jakarta.annotation-api</artifactId>
+>     <version>2.1.1</version>
+> </dependency>
+> ```
+>
+> **源码**：
+>
+> ```java
+> package jakarta.annotation;
+> 
+> import java.lang.annotation.ElementType;
+> import java.lang.annotation.Repeatable;
+> import java.lang.annotation.Retention;
+> import java.lang.annotation.RetentionPolicy;
+> import java.lang.annotation.Target;
+> 
+> @Target({ElementType.TYPE, ElementType.FIELD, ElementType.METHOD})
+> @Retention(RetentionPolicy.RUNTIME)
+> @Repeatable(Resources.class)
+> public @interface Resource {
+>     String name() default "";
+> 
+>     String lookup() default "";
+> 
+>     Class<?> type() default Object.class;
+> 
+>     AuthenticationType authenticationType() default Resource.AuthenticationType.CONTAINER;
+> 
+>     boolean shareable() default true;
+> 
+>     String mappedName() default "";
+> 
+>     String description() default "";
+> 
+>     public static enum AuthenticationType {
+>         CONTAINER,
+>         APPLICATION;
+> 
+>         private AuthenticationType() {
+>         }
+>     }
+> }
+> ```
+
+
+
+##### 根据 name 注入
+
+修改`Impl`实现类：
+
+```java
+@Service
+public class UserServiceImpl implements UserService {
+    @Resource(name = "userDao")
+    private UserDao userDao;
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+```java
+@Repository("userDao")
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao execute...");
+    }
+}
+```
+
+
+
+##### name 未知注入
+
+当`@Resource`注解使用时没有指定`name`的时候，还是根据`name`进行查找，这个`name`是属性名。
+
+修改`Impl`实现类：
+
+```java
+@Service
+public class UserServiceImpl implements UserService {
+    @Resource
+    private UserDao userDao;
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service execute...");
+    }
+}
+```
+
+```java
+@Repository("userDao")
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao execute...");
+    }
+}
+```
+
+
+
+##### 其他情况
+
+修改`UserServiceImpl`类，`userDao1`属性名不存在：
+
+```java
+package com.atguigu.spring6.service.impl;
+
+import com.atguigu.spring6.dao.UserDao;
+import com.atguigu.spring6.service.UserService;
+import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+
+@Service
+public class UserServiceImpl implements UserService {
+
+    @Resource
+    private UserDao userDao1;
+
+    @Override
+    public void out() {
+        userDao1.print();
+        System.out.println("Service层执行结束");
+    }
+}
+```
+
+测试异常，根据异常信息得知：显然当通过`name`找不到的时候，自然会启动`byType`进行注入，以上的错误是因为`UserDao`接口下有两个实现类导致的。所以根据类型注入就会报错。
+
+
+
+##### 总结
+
+`@Resource`注解：默认`byName`注入，没有指定`name`时把属性名当做`name`，根据`name`找不到时，才会`byType`注入。`byType`注入时，某种类型的Bean只能有一个。
+
+
+
+#### Spring 全注解开发
+
+全注解开发就是不再使用spring配置文件了，写一个配置类来代替配置文件。
+
+```java
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@ComponentScan("spring6")
+public class SpringConfig {
+}
+```
+
+ 测试：
+
+```java
+@Test
+public void test1() {
+    AnnotationConfigApplicationContext ac = new AnnotationConfigApplicationContext(SpringConfig.class);
+    UserController controller = ac.getBean("userController", UserController.class);
+    controller.print();
+}
+```
+
+
+
+## 手搓 IoC 容器
