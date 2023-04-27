@@ -2151,3 +2151,284 @@ public void test1() {
 
 
 ## 手搓 IoC 容器
+
+目的是实现 Spring 中最核心的 IoC 模块，主要用到的方法是反射。
+
+
+
+### 搭建子模块
+
+参考其他模块。
+
+
+
+### 准备测试需要的依赖和环境
+
+添加依赖：
+
+```XML
+<!--junit5测试-->
+<dependency>
+    <groupId>org.junit.jupiter</groupId>
+    <artifactId>junit-jupiter-api</artifactId>
+    <version>5.9.2</version>
+</dependency>
+```
+
+创建`UserDao` `UserService` 等层：
+
+```java
+public interface UserDao {
+    public void print();
+}
+```
+
+```java
+public class USerDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao层执行结束");
+    }
+}
+```
+
+```java
+public interface UserService {
+    public void print();
+}
+```
+
+```java
+public class UserServiceImpl implements UserService {
+
+    private UserDao userDao;
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service层执行结束");
+    }
+}
+```
+
+
+
+### 创建两个注解
+
+我们通过注解的形式**加载bean**与**实现依赖注入**，分别是`@Bean`和`@Di`。
+
+`@Bean`注解：
+
+```java
+@Target(ElementType.TYPE)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Bean {
+}
+```
+
+`@Di`注解：
+
+```java
+@Target(ElementType.FIELD)
+@Retention(RetentionPolicy.RUNTIME)
+public @interface Di {
+}
+```
+
+
+
+### 创建容器接口
+
+我们模仿`ApplicationContext`定义我们自己的接口和相关方法：
+
+```java
+public interface MyAnnotationContext {
+    Object getBean(Class clazz);
+}
+```
+
+
+
+### 实现 bean 容器接口
+
+1. 返回对应的对象；
+2. 根据包规则加载对应的bean，通过构造方法传入包的`base`路径，扫描被`@Bean`注解的java对象；
+
+`MyScanApplicationContext`基于**注解**扫描bean：
+
+```java
+public class MyScanApplicationContext implements MyAnnotationContext {
+
+    //存储bean的容器
+    private HashMap<Class, Object> beanFactory = new HashMap<>();
+    private static String rootPath;
+
+    @Override
+    public Object getBean(Class clazz) {
+        return beanFactory.get(clazz);
+    }
+
+    /**
+     * 根据包扫描加载bean
+     * @param basePackage
+     */
+    public MyScanApplicationContext(String basePackage) {
+       try {
+            String packageDirName = basePackage.replaceAll("\\.", "\\\\");
+            Enumeration<URL> dirs =Thread.currentThread().getContextClassLoader().getResources(packageDirName);
+            while (dirs.hasMoreElements()) {
+                URL url = dirs.nextElement();
+                String filePath = URLDecoder.decode(url.getFile(),"utf-8");
+                rootPath = filePath.substring(0, filePath.length()-packageDirName.length());
+                loadBean(new File(filePath));
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private  void loadBean(File fileParent) {
+        if (fileParent.isDirectory()) {
+            File[] childrenFiles = fileParent.listFiles();
+            if(childrenFiles == null || childrenFiles.length == 0){
+                return;
+            }
+            for (File child : childrenFiles) {
+                if (child.isDirectory()) {
+                    //如果是个文件夹就继续调用该方法,使用了递归
+                    loadBean(child);
+                } else {
+                    //通过文件路径转变成全类名,第一步把绝对路径部分去掉
+                    String pathWithClass = child.getAbsolutePath().substring(rootPath.length() - 1);
+                    //选中class文件
+                    if (pathWithClass.contains(".class")) {
+                        //    com.xinzhi.dao.UserDao
+                        //去掉.class后缀，并且把 \ 替换成 .
+                        String fullName = pathWithClass.replaceAll("\\\\", ".").replace(".class", "");
+                        try {
+                            Class<?> aClass = Class.forName(fullName);
+                            //把非接口的类实例化放在map中
+                            if(!aClass.isInterface()){
+                                Bean annotation = aClass.getAnnotation(Bean.class);
+                                if(annotation != null){
+                                    Object instance = aClass.newInstance();
+                                    //判断一下有没有接口
+                                    if(aClass.getInterfaces().length > 0) {
+                                        //如果有接口把接口的class当成key，实例对象当成value
+                                        System.out.println("正在加载【"+ aClass.getInterfaces()[0] +"】,实例对象是：" + instance.getClass().getName());
+                                        beanFactory.put(aClass.getInterfaces()[0], instance);
+                                    }else{
+                                        //如果有接口把自己的class当成key，实例对象当成value
+                                        System.out.println("正在加载【"+ aClass.getName() +"】,实例对象是：" + instance.getClass().getName());
+                                        beanFactory.put(aClass, instance);
+                                    }
+                                }
+                            }
+                        } catch (ClassNotFoundException | IllegalAccessException | InstantiationException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+
+
+### 依赖注入
+
+`dao`层和`service`层加上注解：
+
+```java
+@Bean
+public class UserDaoImpl implements UserDao {
+    @Override
+    public void print() {
+        System.out.println("Dao层执行结束");
+    }
+}
+```
+
+```java
+@Bean
+public class UserServiceImpl implements UserService {
+    @Di
+    private UserDao userDao;
+
+    @Override
+    public void print() {
+        userDao.print();
+        System.out.println("Service层执行结束");
+    }
+}
+```
+
+我们测试一下上一节的代码：
+
+```java
+MyScanApplicationContext ac = new MyScanApplicationContext("spring6");
+        UserService s = (UserService) ac.getBean(UserService.class);
+        System.out.println(s);
+
+        UserDao d = (UserDao) ac.getBean(UserDao.class);
+        System.out.println(d);
+        d.print();
+```
+
+但是，我们只能调用`UserDao.print()`，而`UserService.print()`报错因为此时`UserServiceImpl`中的`userDao`仍然为`null`。所以我们还需要**实现依赖注入**：
+
+```java
+public class MyScanApplicationContext implements MyAnnotationContext {
+
+    private HashMap<Class, Object> beanFactory = new HashMap<>();
+    private static String rootPath;
+
+    @Override
+    public Object getBean(Class clazz) {
+        return beanFactory.get(clazz);
+    }
+
+    public MyScanApplicationContext(String base) {
+        try {
+            String packageDirName = base.replaceAll("\\.", "\\\\");
+            Enumeration<URL> dirs = Thread.currentThread().
+                    getContextClassLoader().
+                    getResources(packageDirName);
+            while (dirs.hasMoreElements()) {
+                URL url = dirs.nextElement();
+                String filePath = URLDecoder.decode(url.getFile(), StandardCharsets.UTF_8);
+                rootPath = filePath.substring(0, filePath.length() - packageDirName.length());
+                loadBean(new File(filePath));
+            }
+            loadDi();
+        } catch (IOException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+    
+    private void loadBean(File fileParent) {
+        ...
+    }
+    
+    private void loadDi() throws IllegalAccessException {
+        for (Map.Entry<Class, Object> entry : beanFactory.entrySet()) {
+            Object value = entry.getValue();
+            for (Field field : value.getClass().getDeclaredFields()) {
+                Di annotation = field.getAnnotation(Di.class);
+                if (annotation != null) {
+                    field.setAccessible(true);
+                    System.out.println("正在给【" + value.getClass().getName() + "】属性【" +
+                            field.getName() + "】注入值【" +
+                            beanFactory.get(field.getType()).getClass().getName() + "】");
+                    field.set(value, beanFactory.get(field.getType()));
+                }
+            }
+        }
+    }
+}
+```
+
+测试成功。
