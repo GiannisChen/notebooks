@@ -303,6 +303,389 @@ MyBatis 提供了 **SQL 提供者**的功能。将 SQL 以方法的形式定义�
 SQL 提供者有四类`@SelectProvider`，`@InsertProvider`，`@UpdateProvider`，`@DeleteProvider`。
 
 ```java
+public class SqlProvider {
+    public static String selectArticle() {
+        return "select * from article where id = #{id}";
+    }
 
+    public static String updateTime() {
+        return "update article set update_time=#{newTime} where id=#{id}";
+    }
+}
 ```
 
+使用`XXXProvider`提供SQL：
+
+```java
+public interface ArticleMapper {
+
+    ...
+
+    @UpdateProvider(type = SqlProvider.class, method = "updateTime")
+    int updateTime(Integer id, LocalDateTime newTime);
+}
+```
+
+
+
+#### @One 一对一查询
+
+MyBatis 支持一对一，一对多，多对多查询。XML 文件和注解都能实现关系的操作。我们使用注解表示 `article` 和 `article_detail` 的一对一关系。 MyBatis 维护这个关系， 开发人员自己也可以维护这种关系。
+
+![image-20230511114207261](images/image-20230511114207261.png)
+
+```java
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Article {
+    private Integer id;
+    private Integer userId;
+    private String title;
+    private String summary;
+    private Integer readCount;
+    private LocalDateTime createTime;
+    private LocalDateTime updateTime;
+    private ArticleDetail articleDetail;
+}
+```
+
+```java
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class ArticleDetail {
+    private Integer id;
+    private Integer articleId;
+    private String content;
+}
+```
+
+```SQL
+CREATE TABLE IF NOT EXISTS `article_detail`
+(
+    `id`         int(11) NOT NULL AUTO_INCREMENT COMMENT '注解',
+    `article_id` int(11) NOT NULL COMMENT '文章 ID',
+    `content`    text    NOT NULL COMMENT '文章内容',
+    PRIMARY KEY (`id`)
+)
+    ENGINE = InnoDB
+    AUTO_INCREMENT = 1
+    DEFAULT CHARSET = utf8mb4;
+```
+
+测试：
+
+```java
+@Autowired
+private ArticleOneToOneMapper articleOneToOneMapper;
+@Test
+public void test5() {
+    System.out.println(articleOneToOneMapper.queryAllArticle(1));
+}
+```
+
+
+
+#### @Many 一对多查询
+
+一对多查询使用 `@Many` 注解，步骤与一对一基本相同。
+
+```java
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class Comment {
+    private Integer id;
+    private Integer articleId;
+    private String comment;
+}
+```
+
+```SQL
+CREATE TABLE IF NOT EXISTS `article_comment`
+(
+    `id`         int(11) NOT NULL AUTO_INCREMENT COMMENT '注解',
+    `article_id` int(11) NOT NULL COMMENT '文章 ID',
+    `comment`    text    NOT NULL COMMENT '评论内容',
+    PRIMARY KEY (`id`)
+)
+    ENGINE = InnoDB
+    AUTO_INCREMENT = 1
+    DEFAULT CHARSET = utf8mb4;
+```
+
+```java
+public interface ArticleOneToManyMapper {
+    @Select("""
+            select id,article_id,content from article_detail
+            where article_id = #{articleId}
+            """)
+    @Results({
+            @Result(id = true, column = "id", property = "id"),
+            @Result(column = "article_id", property = "articleId"),
+            @Result(column = "content", property = "content")
+    })
+    ArticleDetail queryContent(Integer articleId);
+
+    @Select("""
+            select  
+                id, 
+                article_id, 
+                comment 
+            from article_comment where article_id = #{articleId}
+            """)
+    @Results({
+            @Result(id = true, column = "id", property = "id"),
+            @Result(column = "article_id", property = "articleId"),
+            @Result(column = "comment", property = "comment")
+    })
+    List<Comment> queryCommentsById(Integer articleId);
+
+    @Select("""
+            select id,
+            user_id,
+            title,
+            summary,
+            read_count,
+            create_time,
+            update_time
+            from article
+            where id = #{id}
+            """)
+    @Results({
+            @Result(id = true, column = "id", property = "id"),
+            @Result(column = "user_id", property = "userId"),
+            @Result(column = "read_count", property = "readCount"),
+            @Result(column = "create_time", property = "createTime"),
+            @Result(column = "update_time", property = "updateTime"),
+            @Result(column = "id", property = "articleDetail",
+                    one = @One(select =
+                            "com.example.demo.model.mapper.ArticleOneToManyMapper.queryContent", fetchType = FetchType.LAZY)),
+            @Result(column = "id", property = "comments", many = @Many(
+                    select = "com.example.demo.model.mapper.ArticleOneToManyMapper.queryCommentsById", fetchType = FetchType.LAZY))
+    })
+    Article queryAllArticle(Integer id);
+}
+```
+
+测试：
+
+```java
+@Autowired
+private ArticleOneToManyMapper articleOneToManyMapper;
+
+@Test
+public void test6() {
+    System.out.println(articleOneToManyMapper.queryAllArticle(1));
+}
+```
+
+
+
+#### 自动配置类
+
+```java
+@ConditionalOnClass({SqlSessionFactory.class, SqlSessionFactoryBean.class})
+@ConditionalOnSingleCandidate(DataSource.class)
+@EnableConfigurationProperties({MybatisProperties.class})
+@AutoConfigureAfter({DataSourceAutoConfiguration.class, MybatisLanguageDriverAutoConfiguration.class})
+public class MybatisAutoConfiguration implements InitializingBean {
+    private static final Logger logger = LoggerFactory.getLogger(MybatisAutoConfiguration.class);
+    private final MybatisProperties properties;
+    private final Interceptor[] interceptors;
+    private final TypeHandler[] typeHandlers;
+    private final LanguageDriver[] languageDrivers;
+    private final ResourceLoader resourceLoader;
+    private final DatabaseIdProvider databaseIdProvider;
+    private final List<ConfigurationCustomizer> configurationCustomizers;
+    private final List<SqlSessionFactoryBeanCustomizer> sqlSessionFactoryBeanCustomizers;
+}
+```
+
+```java
+@Bean
+@ConditionalOnMissingBean
+public SqlSessionFactory sqlSessionFactory(DataSource dataSource) throwsException{
+	SqlSessionFactoryBean factory = new SqlSessionFactoryBean();
+	factory.setDataSource(dataSource);
+	....
+}
+@Bean
+@ConditionalOnMissingBean
+public SqlSessionTemplate sqlSessionTemplate(SqlSessionFactory sqlSessionFactory){
+    ExecutorType executorType = this.properties.getExecutorType();
+	return executorType != null ? new 		SqlSessionTemplate(sqlSessionFactory,executorType) : new 	SqlSessionTemplate(sqlSessionFactory);
+}
+```
+
+`SqlSessionTemplate` 是线程安全的，MyBatis 为了与 Spring 继承。 提供的由 Spring 管理的Bean。这个`SqlSesionTemplate` 实现了 `SqlSession` 接口， 能够由 Spring 事务管理器使用。提供Spring 的事务处理。同时管理 `SqlSession` 的创建，销毁。
+
+
+
+#### 常见配置
+
+- 全部配置：https://mybatis.org/mybatis-3/zh/configuration.html#settings
+
+```properties
+#驼峰命名
+mybatis.configuration.map-underscore-to-camel-case=true
+#mapper xml 文件位置
+mybatis.mapper-locations=classpath:/mappers/**/*.xml
+#启用缓存
+mybatis.configuration.cache-enabled=true
+#延迟加载
+mybatis.configuration.lazy-loading-enabled=true
+#mybatis 主配置文件，按需使用
+mybatis.config-location=classpath:/sql-config.xml
+```
+
+上述设置内容比较多时，可以将设置放到 MyBatis 主配置文件，`mybatis.config-location` 加载主配置文件：
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+"https://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+    <settings>
+        <setting name="cacheEnabled" value="true"/>
+        <setting name="lazyLoadingEnabled" value="true"/>
+        <setting name="mapUnderscoreToCamelCase" value="true"/>
+    </settings>
+    
+    <typeAliases>
+    	<package name="com.bjpowernode.po"/>
+    </typeAliases>
+</configuration>
+```
+
+
+
+#### 连接池
+
+- HikariCP 连接池 https://github.com/brettwooldridge/HikariCP/wiki 
+
+- 连接池配置： https://github.com/brettwooldridge/HikariCP/wiki/About-Pool-Sizing 
+
+- MySQL 连接池配置建议 https://github.com/brettwooldridge/HikariCP/wiki/MySQL-Configuration
+
+部分配置：
+
+- `prepStmtCacheSize`：这将设置 MySQL 驱动程序将缓存每个连接的预准备语句数。默认值为保守的 25。我们建议将其设置为250-500 之间。
+- `prepStmtCacheSqlLimit`：这是驱动程序将缓存的准备好的 SQL 语句的最大长度。MySQL 默认值为 256。根据我们的经验，特别是对于像Hibernate这样的 ORM 框架，这个默认值远低于生成的语句长度的阈值。我们推荐的设置为 2048。 
+- `cachePrepStmts`：如果缓存实际上被禁用，则上述参数都没有任何影响，因为默认情况下是禁用的。必须将此参数设置为 `true` 。
+- `useServerPrepStmts`：较新版本的 MySQL 支持服务器端准备语句，这可以提供实质性的性能提升。将此属性设置为 `true` 。
+
+`application.yml`：
+
+```yaml
+spring:
+	datasource:
+        type: com.zaxxer.hikari.HikariDataSource
+        driver-class-name: com.mysql.cj.jdbc.Driver
+        url: jdbc:mysql://localhost:3306/blog?serverTimezone=Asia/Shanghai
+        username: root
+        password: 123456
+    hikari:
+        auto-commit: true
+        # # connections = ((cpu 核心数 * 2) + 磁盘数量) 近似值。默认10
+        maximum-pool-size: 10
+        #最小连接数，默认 10，不建议设置。默认与 maximum-pool-size 一样大小。推荐使用固定大小的连接池
+        minimum-idle: 10
+        #获取连接时，检测语句
+        connection-test-query: select 1
+        ###
+        # 连接超时，默认 30 秒。
+        # 控制客户端在获取池中 Connection 的等待时间，
+        # 如果没有连接可用的情况下超过该时间，则抛出 SQLException 异常，###
+        connection-timeout: 20000
+        #其他属性
+        data-source-properties:
+            cachePrepStmts: true
+            dataSource.cachePrepStmtst: true
+            dataSource.prepStmtCacheSize: 250
+            dataSource.prepStmtCacheSqlLimit: 2048
+            dataSource.useServerPrepStmts: true
+```
+
+
+
+### 事务（Transaction）
+
+事务分为**全局事务**与**本地事务**。**本地事务**是特定于资源的，例如与 JDBC 连接关联的事务。本地事务可能更容易使用，但有一个显著的缺点：它们不能跨多个事务资源工作。比如在方法中处理连接多个数据库的事务，本地事务是无效的。 
+
+Spring 解决了全局和本地事务的缺点。**它允许应用程序开发人员在任何环境中使用一致的编程模型**。只需编写一次代码，就可以从不同环境中的不同事务管理策略中获益。Spring 框架同时提供**声明式**和**编程式**事务管理（推荐声明式事务管理`@Transactional`）。
+
+ Spring 事务抽象的关键是事务策略的概念，`org.springframework.transaction.PlatformTransactionManager` 接口定义了事务的策略，是通过 Spring 面向切面编程（**AOP**）实现的。事务方面的代码以样板的方式使用，事务使用AOP的**环绕通知**（`TransactionInterceptor`）。
+
+**声明式事务的方式**：
+
+1. XML 配置文件：全局配置
+2. `@Transactional` 注解驱动 ：和代码一起提供，比较直观，和代码的耦合比较高。
+
+> Spring 团队建议您只使用 `@Transactional` 注释具体类（以及具体类的方法），而不是注释接口。
+>
+> 当然，可以将 `@Transactional` 注解放在接口（或接口方法）上，但这**只有在使用基于接口的代理**时才能正常工作。
+
+**方法的可见性**： 
+
+- 公共（public）方法应用 `@Transactional` 注解。
+
+- 如果使用 `@Transactional` 注释了受保护的、私有的或包可见的方法，则不会引发错误，**但注释的方法不会显示配置的事务设置，事务不生效**。
+- 如果需要受保护的、私有的方法具有事务考虑使用 `AspectJ`。而不是基于代理的机制。
+
+
+
+#### @Transactional
+
+假设方法`postNewArticle()`包含了两个子SQL分别对文章类`Article`和文章内容类`ArticleContent`进行修改，但是我们需要对两个SQL进行事务管理（原子性）：
+
+```java
+@Transactional
+@Override
+public boolean postNewArticle(ArticlePO article, String content) {
+    //新增文章
+    articleMapper.insertArticle(article);
+    if( article.getReadCount() < 1) {
+    	throw new RuntimeException("已读数量不能 < 1 ");
+    }
+    //新增文章内容
+    ArticleDetailPO detail = new ArticleDetailPO();
+    detail.setArticleId(article.getId());
+    detail.setContent(content);
+    articleMapper.insertArticleContent(detail);
+    return true;
+}
+```
+
+`@Transactional` 可在**类**上，**接口**，**方法**上声明，表示方法需要事务管理， Spring 对 `public` 方法添加事务处理。
+
+```java
+@EnableTransactionManagement
+@MapperScan(basePackages = "com.bjpowernode.trans.repository")
+@SpringBootApplication
+public class Lession11TransApplication {
+public static void main(String[] args) {
+	SpringApplication.run(Lession11TransApplication.class, args);
+}
+```
+
+测试：
+
+```java
+@Test
+void testAddArticle() {
+    ArticlePO article = new ArticlePO();
+    article.setTitle("Spring 事务管理 111");
+    article.setSummary("Spring 事务属性，事务实现 111");
+    article.setUserId(2202);
+    article.setReadCount(0);
+    article.setCreateTime(LocalDateTime.now());
+    article.setUpdateTime(LocalDateTime.now());
+    boolean add = articleService.postNewArticle(article, "Spring 统一事务管理。事务管理器管理本地事务 111");
+    System.out.println("add = " + add);
+}
+```
+
+添加数据失败， 在事务中抛出运行时异常， Spring 默认回滚事务。
